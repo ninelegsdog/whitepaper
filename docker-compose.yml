@@ -1,0 +1,44 @@
+services:
+  app:
+    build: .
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - NODE_ENV=production
+    # Ограничение ресурсов для предотвращения DoS-атак или утечек [4]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - paperclip-internal
+
+  db:
+    image: postgres:16-alpine
+    restart: always
+    shm_size: 128mb
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - paperclip-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  paperclip-internal:
+    driver: bridge
+    # В идеале здесь можно добавить сетевые политики Docker Sandboxes [3]
+
+volumes:
+  pgdata:
