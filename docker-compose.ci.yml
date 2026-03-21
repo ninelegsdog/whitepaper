@@ -1,0 +1,128 @@
+# =============================================================================
+# Paperclip Docker Compose - CI/CD
+# =============================================================================
+# Ephemeral testing environment for continuous integration
+# All containers are ephemeral, no volumes persist
+# 
+# Usage:
+#   docker compose -f docker-compose.ci.yml run --rm test
+# =============================================================================
+
+services:
+  # =============================================================================
+  # Type Check
+  # =============================================================================
+  typecheck:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+      target: typecheck
+    container_name: paperclip-ci-typecheck
+    profiles:
+      - ci
+    environment:
+      - NODE_ENV=test
+      - CI=true
+    volumes:
+      - ./:/app
+    working_dir: /app
+
+  # =============================================================================
+  # Lint
+  # =============================================================================
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+      target: lint
+    container_name: paperclip-ci-lint
+    profiles:
+      - ci
+    environment:
+      - NODE_ENV=test
+      - CI=true
+    volumes:
+      - ./:/app
+    working_dir: /app
+
+  # =============================================================================
+  # Test Runner
+  # =============================================================================
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+      target: test
+    container_name: paperclip-ci-test
+    profiles:
+      - ci
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - DATABASE_URL=file:./data/pglite/ci.db
+    volumes:
+      - ./:/app
+      - ci-coverage:/app/coverage
+    working_dir: /app
+    tmpfs:
+      - /app/data:size=100M
+
+  # =============================================================================
+  # Build Verification
+  # =============================================================================
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+      target: builder
+    container_name: paperclip-ci-build
+    profiles:
+      - ci
+    environment:
+      - NODE_ENV=production
+      - CI=true
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: sh -c "pnpm --filter @paperclipai/ui build && pnpm --filter @paperclipai/server build && test -f server/dist/index.js"
+
+  # =============================================================================
+  # Full CI Pipeline
+  # =============================================================================
+  ci-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.ci
+    container_name: paperclip-ci-pipeline
+    profiles:
+      - ci
+    environment:
+      - NODE_ENV=test
+      - CI=true
+      - DATABASE_URL=file:./data/pglite/ci.db
+    volumes:
+      - ./:/app
+      - ci-artifacts:/app/dist
+      - ci-coverage:/app/coverage
+    working_dir: /app
+    command: |
+      sh -c "
+        echo '=== Running CI Pipeline ===' &&
+        echo '--- Type Checking ---' &&
+        pnpm -r typecheck &&
+        echo '--- Linting ---' &&
+        pnpm lint &&
+        echo '--- Testing ---' &&
+        pnpm test:run --coverage &&
+        echo '--- Building ---' &&
+        pnpm --filter @paperclipai/ui build &&
+        pnpm --filter @paperclipai/server build &&
+        echo '=== CI Pipeline Complete ==='
+      "
+
+# =============================================================================
+# Volumes (Ephemeral for CI)
+# =============================================================================
+volumes:
+  ci-coverage:
+  ci-artifacts:

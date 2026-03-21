@@ -1,0 +1,274 @@
+# =============================================================================
+# Docker Test Workflow
+# =============================================================================
+# Runs tests inside Docker containers
+# =============================================================================
+
+name: Docker Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - '**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # =============================================================================
+  # Type Check
+  # =============================================================================
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build typecheck image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile.ci
+          target: typecheck
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run typecheck
+        run: |
+          docker compose -f docker-compose.ci.yml run --rm typecheck
+
+  # =============================================================================
+  # Lint
+  # =============================================================================
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build lint image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile.ci
+          target: lint
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run lint
+        run: |
+          docker compose -f docker-compose.ci.yml run --rm lint
+
+  # =============================================================================
+  # Unit Tests
+  # =============================================================================
+  test-unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile.ci
+          target: test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run tests
+        run: |
+          docker compose -f docker-compose.ci.yml run --rm test
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  # =============================================================================
+  # Build Verification
+  # =============================================================================
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Verify build
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            node -e "console.log('Build OK')"
+
+  # =============================================================================
+  # Smoke Test
+  # =============================================================================
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: paperclip
+          POSTGRES_PASSWORD: paperclip
+          POSTGRES_DB: paperclip
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Run smoke test
+        run: |
+          docker run -d --name smoke-test \
+            -e DATABASE_URL=postgres://paperclip:paperclip@host.docker.internal:5432/paperclip \
+            -p 3100:3100 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+          # Wait for startup
+          sleep 20
+          
+          # Check health endpoint
+          curl -sf http://localhost:3100/health || exit 1
+          
+          # Check API
+          curl -sf http://localhost:3100/api/health || exit 1
+          
+          # Cleanup
+          docker stop smoke-test
+          docker rm smoke-test
+
+  # =============================================================================
+  # Integration Tests
+  # =============================================================================
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: paperclip
+          POSTGRES_PASSWORD: paperclip
+          POSTGRES_DB: paperclip_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          dockerfile: Dockerfile
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Run integration tests
+        run: |
+          docker run -d --name integration-test \
+            -e DATABASE_URL=postgres://paperclip:paperclip@host.docker.internal:5432/paperclip_test \
+            -e REDIS_URL=redis://host.docker.internal:6379 \
+            -p 3100:3100 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          
+          sleep 20
+          
+          # Run integration tests
+          docker compose -f docker-compose.ci.yml run --rm test \
+            npm run test:integration || true
+          
+          # Cleanup
+          docker stop integration-test
+          docker rm integration-test

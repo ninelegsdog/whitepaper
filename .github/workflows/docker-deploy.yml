@@ -1,0 +1,188 @@
+# =============================================================================
+# Docker Deploy Workflow
+# =============================================================================
+# Deploys Paperclip to production servers via SSH
+# Runs on push to main branch and on version tags
+# =============================================================================
+
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # =============================================================================
+  # Deploy to Staging
+  # =============================================================================
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          script: |
+            cd /opt/paperclip
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Pull Docker image
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            
+            # Tag image
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} paperclip:latest
+            
+            # Stop old containers
+            docker compose -f docker-compose.yml down || true
+            
+            # Start new containers
+            docker compose -f docker-compose.yml up -d
+            
+            # Wait for health check
+            sleep 30
+            
+            # Verify deployment
+            docker compose ps
+            curl -sf http://localhost:3100/health || exit 1
+            
+            echo "Staging deployment successful!"
+
+  # =============================================================================
+  # Deploy to Production
+  # =============================================================================
+  deploy-production:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    needs: deploy-staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Production Server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+          script: |
+            cd /opt/paperclip
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Pull Docker image
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            
+            # Tag image with version
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} paperclip:${{ github.ref_name }}
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} paperclip:latest
+            
+            # Backup database
+            docker compose exec -T db pg_dump -U paperclip > backup_$(date +%Y%m%d_%H%M%S).sql
+            
+            # Graceful rolling update
+            docker compose -f docker-compose.yml up -d --no-deps paperclip-1
+            sleep 30
+            docker compose -f docker-compose.yml exec -T paperclip-1 node -e "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1))" || exit 1
+            
+            docker compose -f docker-compose.yml up -d --no-deps paperclip-2
+            sleep 30
+            docker compose -f docker-compose.yml exec -T paperclip-2 node -e "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1))" || exit 1
+            
+            # Verify deployment
+            docker compose ps
+            curl -sf http://localhost:3100/health || exit 1
+            
+            echo "Production deployment successful!"
+
+      - name: Notify Success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: ${{ secrets.SLACK_DEPLOY_CHANNEL }}
+          payload: |
+            {
+              "text": "Production deployment successful!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Successful*\n*Version:* ${{ github.ref_name }}\n*Deployed by:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      - name: Notify Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: ${{ secrets.SLACK_DEPLOY_CHANNEL }}
+          payload: |
+            {
+              "text": "Production deployment failed!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment FAILED*\n*Version:* ${{ github.ref_name }}\n*Triggered by:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+  # =============================================================================
+  # Database Migration (Optional)
+  # =============================================================================
+  migrate:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: always() && (needs.deploy-staging.result == 'success' || github.event.inputs.environment == 'production')
+
+    steps:
+      - name: Run Database Migration
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd /opt/paperclip
+            docker compose exec -T paperclip-1 pnpm db:migrate || echo "No migrations to run"

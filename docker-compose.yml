@@ -1,14 +1,87 @@
+# =============================================================================
+# Paperclip Docker Compose - Production
+# =============================================================================
+# Multi-instance deployment with Traefik load balancer
+# Designed for VPN/Tailscale access
+# 
+# Usage:
+#   docker compose up -d
+#   docker compose ps
+# =============================================================================
+
 services:
-  app:
-    build: .
-    restart: always
-    user: "1000:1000"
-    read_only: true
-    tmpfs:
-      - /tmp:size=10M,mode=1777
+  # =============================================================================
+  # Traefik Reverse Proxy
+  # =============================================================================
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    profiles:
+      - production
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-certs:/certs
+      - traefik-logs:/var/log/traefik
+    networks:
+      - backend
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - TZ=UTC
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.paperclip.local`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls=true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # =============================================================================
+  # Paperclip Instance 1
+  # =============================================================================
+  paperclip-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paperclip-1
+    restart: unless-stopped
+    profiles:
+      - production
+    expose:
+      - "3100"
+    volumes:
+      - paperclip-data:/paperclip
+    networks:
+      - backend
+    environment:
       - NODE_ENV=production
+      - PORT=3100
+      - HOST=0.0.0.0
+      - SERVE_UI=true
+      - PAPERCLIP_HOME=/paperclip
+      - PAPERCLIP_INSTANCE_ID=1
+      - PAPERCLIP_DEPLOYMENT_MODE=authenticated
+      - PAPERCLIP_DEPLOYMENT_EXPOSURE=vpn
+      - DATABASE_URL=postgres://${POSTGRES_USER:-paperclip}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-paperclip}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - REPLICA_ID=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -17,41 +90,133 @@ services:
         reservations:
           cpus: '0.5'
           memory: 1G
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - paperclip-internal
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777,nosuid,noexec
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperclip.rule=Host(`paperclip.local`)"
+      - "traefik.http.routers.paperclip.entrypoints=websecure"
+      - "traefik.http.routers.paperclip.tls=true"
+      - "traefik.http.services.paperclip.loadbalancer.server.port=3100"
+      - "traefik.docker.network=backend"
 
-  db:
-    image: postgres:16-alpine
-    restart: always
-    user: "999:999"
-    shm_size: 256mb
-    command: postgres -c shared_buffers=256MB -c max_connections=200 -c effective_cache_size=1GB -c work_mem=16MB
+  # =============================================================================
+  # Paperclip Instance 2 (for load balancing)
+  # =============================================================================
+  paperclip-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: paperclip-2
+    restart: unless-stopped
+    profiles:
+      - production
+    expose:
+      - "3100"
+    volumes:
+      - paperclip-data:/paperclip
+    networks:
+      - backend
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - NODE_ENV=production
+      - PORT=3100
+      - HOST=0.0.0.0
+      - SERVE_UI=true
+      - PAPERCLIP_HOME=/paperclip
+      - PAPERCLIP_INSTANCE_ID=2
+      - PAPERCLIP_DEPLOYMENT_MODE=authenticated
+      - PAPERCLIP_DEPLOYMENT_EXPOSURE=vpn
+      - DATABASE_URL=postgres://${POSTGRES_USER:-paperclip}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-paperclip}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - REPLICA_ID=2
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777,nosuid,noexec
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.paperclip.loadbalancer.server.port=3100"
+      - "traefik.docker.network=backend"
+
+  # =============================================================================
+  # PostgreSQL Database
+  # =============================================================================
+  db:
+    image: postgres:17-alpine
+    container_name: paperclip-db
+    restart: unless-stopped
+    profiles:
+      - production
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-paperclip}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-paperclip}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=200
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=80MB
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
-      - paperclip-internal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      - backend
     deploy:
       resources:
         limits:
@@ -60,24 +225,79 @@ services:
         reservations:
           cpus: '1.0'
           memory: 1G
+    shm_size: 256mb
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-paperclip} -d ${POSTGRES_DB:-paperclip}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # =============================================================================
+  # Redis (optional, for caching/sessions)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: paperclip-redis
+    restart: unless-stopped
+    profiles:
+      - production
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# =============================================================================
+# Networks
+# =============================================================================
 networks:
-  paperclip-internal:
+  backend:
     driver: bridge
     driver_opts:
       com.docker.network.bridge.name: br-paperclip
     ipam:
+      driver: default
       config:
         - subnet: 172.28.0.0/16
+    attachable: true
+    internal: false
 
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
+  paperclip-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PAPERCLIP_DATA_DIR:-./data/paperclip}
   pgdata:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: /var/lib/postgresql/paperclip
+      device: ${POSTGRES_DATA_DIR:-./data/postgres}
+  redis-data:
+    driver: local
+  traefik-certs:
+  traefik-logs:

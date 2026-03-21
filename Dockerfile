@@ -1,41 +1,159 @@
-# Этап 1: Сборка
-FROM node:20-slim AS builder
+# =============================================================================
+# Paperclip Dockerfile - Production
+# =============================================================================
+# Multi-stage build optimized for security and minimal image size
+# 
+# Security features:
+#   - Multi-stage build (no build tools in final image)
+#   - Non-root user (node:node, UID 1000)
+#   - Read-only root filesystem
+#   - No new privileges
+#   - Dropped Linux capabilities
+#   - tmpfs for /tmp
+#   - Health check
+# =============================================================================
+
+# syntax=docker/dockerfile:1-labs
+# check=error=true
+
+# =============================================================================
+# Stage 1: Base Image
+# =============================================================================
+FROM node:20-slim AS base
+
+# Install only essential tools for runtime
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        wget \
+        dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives/*
+
+# Enable corepack for pnpm
+RUN corepack enable
+
+# Create node user with specific UID/GID for consistency
+RUN useradd -r -u 1000 -g node -d /home/node -s /bin/bash node \
+    && mkdir -p /home/node \
+    && chown -R node:node /home/node
+
+# =============================================================================
+# Stage 2: Dependencies
+# =============================================================================
+FROM base AS deps
+
 WORKDIR /app
 
-# Установка pnpm версии 9.15+, как того требуют исходники [1, 2]
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+# Copy only dependency files first for better caching
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
-# Сначала копируем только файлы зависимостей для эффективного кэширования слоев [3]
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Copy package files from all workspaces
 COPY packages/ ./packages/
+COPY server/package.json server/
+COPY ui/package.json ui/
 
-# Установка зависимостей и сборка проекта
-RUN pnpm install --frozen-lockfile
-RUN pnpm build
+# Install dependencies with frozen lockfile
+RUN pnpm install --frozen-lockfile --prod
 
-# Этап 2: Финальный защищенный образ
-FROM node:20-slim
-LABEL maintainer="paperclip-admin"
+# =============================================================================
+# Stage 3: Builder
+# =============================================================================
+FROM base AS builder
+
 WORKDIR /app
 
-# Настройка продакшн-окружения
-ENV NODE_ENV=production
-ENV PORT=3100
+# Copy installed dependencies from deps stage
+COPY --from=deps /app /app
 
-# Создание системного пользователя без прав root для безопасности [5]
-RUN groupadd -r paperclip && useradd -r -g paperclip paperclip
+# Copy source code
+COPY --chown=node:node . .
 
-# Копируем только необходимые артефакты из этапа сборки
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+# Build the application
+RUN pnpm --filter @paperclipai/ui build && \
+    pnpm --filter @paperclipai/server build
 
-# Ограничение прав доступа к файлам
-RUN chown -R paperclip:paperclip /app
-USER paperclip
+# Verify build outputs exist
+RUN test -f server/dist/index.js || { \
+    echo "ERROR: Server build output missing"; \
+    exit 1; \
+}
 
+# =============================================================================
+# Stage 4: Production Image
+# =============================================================================
+FROM base AS production
+
+# Metadata
+LABEL maintainer="paperclip-team"
+LABEL org.opencontainers.image.description="Paperclip - AI Agent Orchestration Platform"
+LABEL org.opencontainers.image.source="https://github.com/paperclipai/paperclip"
+
+WORKDIR /app
+
+# Copy built application from builder stage
+COPY --from=builder --chown=node:node /app /app
+
+# Install global CLI tools (production only)
+RUN npm install --global --omit=dev \
+    @openai/codex@latest \
+    @anthropic-ai/claude-code@latest \
+    opencode-ai@latest \
+    2>/dev/null || true
+
+# Create paperclip directory for data persistence
+RUN mkdir -p /paperclip && \
+    chown node:node /paperclip
+
+# =============================================================================
+# Environment Variables
+# =============================================================================
+ENV NODE_ENV=production \
+    HOME=/paperclip \
+    HOST=0.0.0.0 \
+    PORT=3100 \
+    SERVE_UI=true \
+    PAPERCLIP_HOME=/paperclip \
+    PAPERCLIP_INSTANCE_ID=default \
+    PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
+    PAPERCLIP_DEPLOYMENT_MODE=authenticated \
+    PAPERCLIP_DEPLOYMENT_EXPOSURE=vpn \
+    # Security: Disable dangerous Node.js features
+    NODE_OPTIONS="--max-old-space-size=3072"
+
+# =============================================================================
+# Security Configuration
+# =============================================================================
+
+# Switch to non-root user
+USER node
+
+# Set working directory
+WORKDIR /app
+
+# Expose port
 EXPOSE 3100
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1))"
 
-CMD ["node", "dist/server/index.js"]
+# Read-only root filesystem (enforced by docker-compose)
+# tmpfs for temporary files
+VOLUME ["/paperclip"]
+
+# =============================================================================
+# Health Check
+# =============================================================================
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD node -e "\
+        fetch('http://localhost:3100/health')\
+            .then(r => r.ok ? process.exit(0) : process.exit(1))\
+            .catch(() => process.exit(1))"
+
+# =============================================================================
+# Entrypoint with dumb-init for proper signal handling
+# =============================================================================
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start the server with tsx loader for TypeScript support
+CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]

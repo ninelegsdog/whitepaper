@@ -1,0 +1,131 @@
+# =============================================================================
+# Paperclip Dockerfile - CI/CD
+# =============================================================================
+# Ephemeral build environment for continuous integration
+# Optimized for testing and building, not for running
+# =============================================================================
+
+# syntax=docker/dockerfile:1-labs
+
+# =============================================================================
+# Base Image
+# =============================================================================
+FROM node:20-slim AS base
+
+# Install CI tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        wget \
+        dumb-init \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Enable corepack for pnpm
+RUN corepack enable
+
+# =============================================================================
+# Dependencies Stage
+# =============================================================================
+FROM base AS deps
+
+WORKDIR /app
+
+# Copy dependency files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY packages/ ./packages/
+COPY server/package.json server/
+COPY ui/package.json ui/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# =============================================================================
+# Build Stage
+# =============================================================================
+FROM deps AS builder
+
+WORKDIR /app
+
+# Copy all source code
+COPY --chown=node:node . .
+
+# Build the application
+RUN pnpm --filter @paperclipai/ui build && \
+    pnpm --filter @paperclipai/server build
+
+# =============================================================================
+# Type Check Stage
+# =============================================================================
+FROM deps AS typecheck
+
+WORKDIR /app
+
+COPY --from=builder /app /app
+
+# Run type checking
+RUN pnpm -r typecheck
+
+# =============================================================================
+# Test Stage
+# =============================================================================
+FROM typecheck AS test
+
+WORKDIR /app
+
+COPY --from=builder /app /app
+
+# Copy test files (in case they were excluded earlier)
+COPY --chown=node:node tests/ ./tests/
+
+# Run tests with coverage
+RUN pnpm test:run --coverage
+
+# =============================================================================
+# Lint Stage
+# =============================================================================
+FROM typecheck AS lint
+
+WORKDIR /app
+
+COPY --from=builder /app /app
+
+# Run linting
+RUN pnpm lint
+
+# =============================================================================
+# Build Artifacts Stage
+# =============================================================================
+FROM base AS artifacts
+
+WORKDIR /app
+
+# Copy only build outputs
+COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/ui/dist ./ui/dist
+COPY --from=builder /app/package.json ./
+
+# Create artifacts archive
+RUN tar -czf /artifacts.tar.gz server/dist ui/dist && \
+    mkdir -p /artifacts && \
+    mv /artifacts.tar.gz /artifacts/
+
+# =============================================================================
+# Final CI Image (for reference only)
+# =============================================================================
+FROM base AS ci
+
+WORKDIR /app
+
+# Copy everything needed for running
+COPY --from=builder /app /app
+
+# Environment for testing
+ENV NODE_ENV=test \
+    CI=true
+
+# Default command
+CMD ["tail", "-f", "/dev/null"]

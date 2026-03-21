@@ -1,0 +1,136 @@
+# =============================================================================
+# Paperclip Dockerfile - Development
+# =============================================================================
+# Development build with hot-reload support, debugging, and full source maps
+# 
+# Features:
+#   - Hot reload via volume mounts
+#   - Debug ports exposed
+#   - Source maps enabled
+#   - Dev dependencies included
+#   - Development tools included
+# =============================================================================
+
+# syntax=docker/dockerfile:1-labs
+
+# =============================================================================
+# Base Image
+# =============================================================================
+FROM node:20-slim AS base
+
+# Install development tools
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        wget \
+        vim \
+        nano \
+        htop \
+        dumb-init \
+        postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Enable corepack for pnpm
+RUN corepack enable
+
+# Create node user
+RUN useradd -r -u 1000 -g node -d /home/node -s /bin/bash node \
+    && mkdir -p /home/node \
+    && chown -R node:node /home/node
+
+# =============================================================================
+# Dependencies Stage
+# =============================================================================
+FROM base AS deps
+
+WORKDIR /app
+
+# Copy dependency files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY packages/ ./packages/
+COPY server/package.json server/
+COPY ui/package.json ui/
+
+# Install ALL dependencies (including dev)
+RUN pnpm install
+
+# =============================================================================
+# Development Build
+# =============================================================================
+FROM deps AS builder
+
+WORKDIR /app
+
+# Copy source code
+COPY --chown=node:node . .
+
+# Build with source maps for debugging
+RUN pnpm --filter @paperclipai/ui build && \
+    pnpm --filter @paperclipai/server build
+
+# =============================================================================
+# Development Image
+# =============================================================================
+FROM base AS development
+
+# Metadata
+LABEL maintainer="paperclip-team"
+LABEL org.opencontainers.image.description="Paperclip - Development Environment"
+
+WORKDIR /app
+
+# Copy source code and node_modules from builder
+COPY --from=builder --chown=node:node /app /app
+
+# Install development tools globally
+RUN npm install -g \
+    typescript \
+    ts-node \
+    nodemon \
+    2>/dev/null || true
+
+# Environment variables for development
+ENV NODE_ENV=development \
+    HOME=/app \
+    HOST=0.0.0.0 \
+    PORT=3100 \
+    SERVE_UI=true \
+    PAPERCLIP_HOME=/app/data \
+    DEBUG=true \
+    # Enable source maps
+    SOURCE_MAP=true \
+    # Development settings
+    WATCH=true
+
+# Expose ports
+EXPOSE 3100    # Main server
+EXPOSE 9229    # Node.js debug port
+EXPOSE 5173    # Vite dev server
+
+# Create directories for volumes
+RUN mkdir -p /app/data /app/logs && \
+    chown -R node:node /app
+
+# Switch to node user
+USER node
+
+# Volume mounts for development (hot reload)
+VOLUME ["/app"]
+VOLUME ["/app/data"]
+VOLUME ["/app/logs"]
+
+# Health check for development
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD node -e "\
+        fetch('http://localhost:3100/health')\
+            .then(r => r.ok ? process.exit(0) : process.exit(1))\
+            .catch(() => process.exit(1))"
+
+# Entrypoint with dumb-init
+ENTRYPOINT ["dumb-init", "--"]
+
+# Development start script with hot reload
+CMD ["pnpm", "dev"]

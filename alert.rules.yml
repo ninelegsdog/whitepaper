@@ -1,0 +1,67 @@
+# =============================================================================
+# Prometheus Alert Rules
+# =============================================================================
+
+groups:
+  - name: paperclip
+    interval: 30s
+    rules:
+      # Instance down
+      - alert: PaperclipInstanceDown
+        expr: up{job="paperclip"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Paperclip instance {{ $labels.instance }} is down"
+          description: "{{ $labels.job }} ({{ $labels.instance }}) has been down for more than 2 minutes."
+
+      # High memory usage
+      - alert: PaperclipHighMemory
+        expr: (container_memory_usage_bytes{name=~"paperclip.*"} / container_spec_memory_limit_bytes{name=~"paperclip.*"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.name }}"
+          description: "Memory usage is above 90% for more than 5 minutes."
+
+      # High CPU usage
+      - alert: PaperclipHighCPU
+        expr: rate(container_cpu_usage_seconds_total{name=~"paperclip.*"}[5m]) > 1.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.name }}"
+          description: "CPU usage is above 90% for more than 5 minutes."
+
+      # Disk space low
+      - alert: PaperclipDiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/paperclip"} / node_filesystem_size_bytes{mountpoint="/paperclip"}) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk space is running low"
+          description: "Less than 10% disk space remaining on /paperclip."
+
+      # High response time
+      - alert: PaperclipHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="paperclip"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency on Paperclip"
+          description: "95th percentile response time is above 2 seconds."
+
+      # High error rate
+      - alert: PaperclipHighErrorRate
+        expr: rate(http_requests_total{job="paperclip", status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on Paperclip"
+          description: "Error rate is above 10% for more than 5 minutes."
