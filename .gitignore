@@ -65,3 +65,6 @@ docker-compose.override.yml
 # Турбо
 .turbo/
 .cache/
+
+# Generated secrets
+.secrets/

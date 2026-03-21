@@ -1,75 +1,49 @@
 # =============================================================================
-# Paperclip Router Configuration
+# Paperclip Router Configuration - Single Instance
 # =============================================================================
-# Routes for Paperclip service with load balancing
+# Optimized for home server with Tailscale
 # =============================================================================
 
 http:
-  # =============================================================================
+  # ============================================================================
   # Routers
-  # =============================================================================
+  # ============================================================================
   routers:
-    # Main Paperclip router
     paperclip:
-      rule: "Host(`paperclip.local`)"
+      rule: "Host(`paperclip`) || Host(`localhost`)"
       service: paperclip-service
       entryPoints:
         - websecure
-      tls:
-        certResolver: letsencrypt
+      tls: {}
       middlewares:
         - secure-headers
-        - compress
 
-    # API router (separate if needed)
-    paperclip-api:
-      rule: "Host(`paperclip.local`) && PathPrefix(`/api`)"
-      service: paperclip-service
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
-      middlewares:
-        - secure-headers
-        - rate-limit
-        - compress
-
-    # Health check router (no TLS required)
     paperclip-health:
       rule: "PathPrefix(`/health`)"
       service: paperclip-health-service
       entryPoints:
-        - web
         - websecure
 
-  # =============================================================================
-  # Services (Load Balancers)
-  # =============================================================================
+  # ============================================================================
+  # Services (Single Instance)
+  # ============================================================================
   services:
-    # Main Paperclip service with health checks
     paperclip-service:
       loadBalancer:
         servers:
-          - url: "http://paperclip-1:3100"
-          - url: "http://paperclip-2:3100"
+          - url: "http://paperclip:3100"
         healthCheck:
           path: /health
           interval: 30s
-          timeout: 5s
+          timeout: 10s
           expectedStatusCode: 200
-        sticky:
-          cookie:
-            name: paperclip-session
-            httpOnly: true
-            secure: true
-            sameSite: "strict"
+        method: "wrr"
 
-    # Health check service (single instance)
     paperclip-health-service:
       loadBalancer:
         servers:
-          - url: "http://paperclip-1:3100"
+          - url: "http://paperclip:3100"
         healthCheck:
           path: /health
           interval: 10s
-          timeout: 3s
+          timeout: 5s

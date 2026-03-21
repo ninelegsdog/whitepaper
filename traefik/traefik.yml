@@ -1,22 +1,21 @@
 # =============================================================================
-# Traefik Configuration - Production with VPN/Tailscale
+# Traefik Configuration - Home Server with Tailscale
 # =============================================================================
-# Reverse proxy with automatic HTTPS, load balancing, and metrics
-# Designed for VPN-only access via Tailscale
+# Optimized for VPN-only access via Tailscale DNS
+# No custom domain required
 # =============================================================================
 
 # =============================================================================
 # Global Configuration
 # =============================================================================
 global:
-  checkNewVersion: true
+  checkNewVersion: false
   sendAnonymousUsage: false
 
 # =============================================================================
 # Entry Points (Ports)
 # =============================================================================
 entryPoints:
-  # HTTPS only - all HTTP traffic redirected to HTTPS
   web:
     address: ":80"
     http:
@@ -26,85 +25,63 @@ entryPoints:
           scheme: https
           permanent: true
 
-  # Secure HTTPS endpoint
   websecure:
     address: ":443"
     http:
       tls:
-        certResolver: letsencrypt
+        certResolver: selfsigned
         domains:
-          - main: "paperclip.local"
+          - main: "paperclip"
             sans:
-              - "*.paperclip.local"
-      # HSTS headers
-      middlewares:
-        - secure-headers
+              - "localhost"
+              - "paperclip.tailnet"
 
 # =============================================================================
-# Certificate Management (Let's Encrypt)
+# Certificate Management
 # =============================================================================
 certificatesResolvers:
-  letsencrypt:
+  selfsigned:
     acme:
-      tlschallenge: true
-      email: "${LETSENCRYPT_EMAIL:-admin@example.com}"
-      storage: /certs/acme.json"
-      # Staging for testing (remove in production)
-      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      email: ${LETSENCRYPT_EMAIL}
+      storage: /certs/acme.json
+      # Self-signed for Tailscale (no external validation needed)
+      # Certificate is generated automatically
 
 # =============================================================================
-# Docker Provider (Dynamic Configuration)
+# Docker Provider
 # =============================================================================
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
     network: backend
-    # Watch for changes
     watch: true
-    # Use labels to configure routes
     useBindPortIP: false
-    # Swarm mode (disabled for compose)
     swarmMode: false
 
-  # File provider for static routes
   file:
     directory: /etc/traefik/dynamic
     watch: true
 
 # =============================================================================
-# API and Dashboard
+# API and Dashboard (disabled for security)
 # =============================================================================
 api:
-  dashboard: true
+  dashboard: false
   insecure: false
 
 # =============================================================================
-# Metrics (Prometheus)
-# =============================================================================
-metrics:
-  prometheus:
-    addEntryPointsLabels: true
-    addServicesLabels: true
-    entryPoint: metrics
-    buckets:
-      - 0.1
-      - 0.3
-      - 1.2
-      - 5.0
-
-# =============================================================================
-# Access Logging
+# Logging
 # =============================================================================
 log:
-  level: INFO
+  level: WARN
   filePath: /var/log/traefik/traefik.log
   format: json
 
 accessLog:
   filePath: /var/log/traefik/access.log
   format: json
-  bufferingSize: 100
+  bufferingSize: 50
   filters:
     statusCodes:
       - "200-599"
@@ -115,16 +92,15 @@ accessLog:
       names:
         User-Agent: redact
         Authorization: redact
-        X-Forwarded-Token: redact
 
 # =============================================================================
 # Server Configuration
 # =============================================================================
 serversTransport:
   insecureSkipVerify: false
-  maxIdleConnsPerHost: 200
+  maxIdleConnsPerHost: 50
   forwardingTimeouts:
-    dialTimeout: 30s
+    dialTimeout: 10s
     responseHeaderTimeout: 0s
 
 # =============================================================================
@@ -132,8 +108,3 @@ serversTransport:
 # =============================================================================
 ping:
   entryPoint: web
-
-# =============================================================================
-# Responding to DNS challenges for Tailscale
-# =============================================================================
-# Note: For Tailscale integration, DNS is managed by Tailscale itself
