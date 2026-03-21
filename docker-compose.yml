@@ -2,25 +2,43 @@ services:
   app:
     build: .
     restart: always
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M,mode=1777
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - NODE_ENV=production
-    # Ограничение ресурсов для предотвращения DoS-атак или утечек [4]
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     depends_on:
       db:
         condition: service_healthy
     networks:
       - paperclip-internal
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   db:
     image: postgres:16-alpine
     restart: always
-    shm_size: 128mb
+    user: "999:999"
+    shm_size: 256mb
+    command: postgres -c shared_buffers=256MB -c max_connections=200 -c effective_cache_size=1GB -c work_mem=16MB
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -31,14 +49,35 @@ services:
       - paperclip-internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 networks:
   paperclip-internal:
     driver: bridge
-    # В идеале здесь можно добавить сетевые политики Docker Sandboxes [3]
+    driver_opts:
+      com.docker.network.bridge.name: br-paperclip
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
 
 volumes:
   pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/postgresql/paperclip
