@@ -21,6 +21,7 @@ This repository contains Docker configurations for deploying Paperclip, an AI ag
 - **VPN-Only Access**: Traefik reverse proxy with Tailscale integration
 - **Monitoring**: Prometheus + Grafana for observability
 - **CI/CD**: GitHub Actions workflows for automated builds and deployment
+- **AI Integration**: OpenCode with Groq API (free tier) for AI agent capabilities
 
 ## Prerequisites
 
@@ -82,6 +83,55 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
 Open http://localhost:3100 in your browser.
 
+## OpenCode Integration
+
+Paperclip integrates with OpenCode to provide AI agent capabilities using free-tier Groq API.
+
+### Supported Models
+
+| Model | Provider | Context | Use Case |
+|-------|---------|---------|----------|
+| `llama-3.3-70b-versatile` | Groq | 128k | General purpose, coding |
+| `mixtral-8x7b-32768` | Groq | 32k | Fast inference |
+| `gemma2-9b-it` | Groq | 8k | Lightweight tasks |
+
+### OpenCode API
+
+OpenCode runs in server mode and exposes an HTTP API for Paperclip integration.
+
+**Endpoint**: `http://opencode:4096` (internal) or `http://localhost:4096` (external)
+
+**Authentication**: Bearer token (password from `OPENCODE_API_PASSWORD`)
+
+```bash
+# Example API call
+curl -X POST http://localhost:4096/tui/append-prompt \
+  -H "Authorization: Bearer $OPENCODE_API_PASSWORD" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Analyze this code..."}'
+```
+
+### Configuration
+
+Edit `opencode/opencode-config.json` to change the default model:
+
+```json
+{
+  "defaultProvider": "groq",
+  "model": "groq/llama-3.3-70b-versatile"
+}
+```
+
+### Available Tools
+
+- `bash` - Execute shell commands
+- `write` - Create/edit files
+- `read` - Read file contents
+- `edit` - Modify specific parts of files
+- `glob` - Find files by pattern
+- `grep` - Search file contents
+- `websearch` - Search the web
+
 ## Development Setup
 
 ### Development Stack
@@ -137,6 +187,38 @@ Connect to Node.js debugger:
 
 ### Architecture
 
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Tailscale VPN Network                        │
+│                    (paperclip.local)                            │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Traefik Reverse Proxy                       │
+│                     (Load Balancer)                             │
+└─────────────────────────────────────────────────────────────────┘
+                    │                    │
+        ┌───────────┴───────┐    ┌───────┴───────────┐
+        │  Paperclip #1     │    │  Paperclip #2    │
+        │  (Container)     │    │  (Container)     │
+        └───────────┬───────┘    └───────┬───────────┘
+                    │                    │
+        ┌───────────┴────────────────────┴───────┐
+        │         Shared Data Volume             │
+        │         (/paperclip)                    │
+        └─────────────────────────────────────────┘
+                    │                    │
+        ┌───────────┴───────┐    ┌───────┴───────────┐
+        │   PostgreSQL     │    │     Redis         │
+        │   (Database)     │    │    (Cache)        │
+        └───────────────────┘    └───────────────────┘
+                    │                    │
+        ┌───────────┴───────┐
+        │    OpenCode       │
+        │    (Groq API)     │
+        │   :4096           │
+        └───────────────────┘
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Tailscale VPN Network                        │

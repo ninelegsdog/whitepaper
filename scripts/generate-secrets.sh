@@ -247,6 +247,21 @@ generate_tailscale_key() {
     log_warning "Please update ${key_file} with your actual Tailscale auth key"
 }
 
+generate_opencode_password() {
+    log_info "Generating OpenCode API password..."
+    local password_file="${SECRETS_DIR}/OPENCODE_API_PASSWORD"
+    
+    if [ -f "$password_file" ]; then
+        log_warning "OpenCode API password already exists, skipping"
+        return 0
+    fi
+    
+    local password=$(generate_random_secret 32)
+    echo "$password" > "$password_file"
+    secure_permissions "$password_file"
+    log_success "Created OpenCode API password"
+}
+
 # =============================================================================
 # Main Function
 # =============================================================================
@@ -277,6 +292,7 @@ main() {
     generate_session_secret
     generate_replica_id
     generate_tailscale_key
+    generate_opencode_password
     
     # Generate environment file
     generate_env_file

@@ -3,10 +3,11 @@
 # =============================================================================
 # 
 # This guide helps you set up Paperclip on a home server with:
-#   - 3GB RAM / 2 CPU cores
+#   - 7GB RAM / 2+ CPU cores
 #   - Docker + Docker Compose
 #   - Tailscale VPN for secure access
 #   - UFW firewall (VPN-only access)
+#   - OpenCode + Groq API (free tier AI)
 #
 # =============================================================================
 
@@ -40,6 +41,11 @@
 │   │  │  Traefik   │  │                                          │
 │   │  │   Proxy    │  │                                          │
 │   │  └────────────┘  │                                          │
+│   │        ↑         │                                          │
+│   │  ┌────────────┐  │                                          │
+│   │  │  OpenCode  │  │                                          │
+│   │  │  (Groq)    │  │                                          │
+│   │  └────────────┘  │                                          │
 │   │                  │                                          │
 │   │   192.168.0.186  │                                          │
 │   └──────────────────┘                                          │
@@ -53,7 +59,7 @@
 
 | Компонент | Минимум | Рекомендуется |
 |----------|---------|----------------|
-| RAM | 3 GB | 4+ GB |
+| RAM | 4 GB | 8+ GB |
 | CPU | 2 cores | 4+ cores |
 | Disk | 20 GB | 50+ GB SSD |
 | OS | Ubuntu 22.04+ | Ubuntu 24.04 LTS |
@@ -113,8 +119,9 @@ nano .env
 ```bash
 POSTGRES_PASSWORD=ваш_сгенерированный_пароль
 BETTER_AUTH_SECRET=ваш_сгенерированный_секрет
-OPENAI_API_KEY=sk-...        # с platform.openai.com
-ANTHROPIC_API_KEY=sk-ant-... # с console.anthropic.com
+GROQ_API_KEY=gsk_...         # бесплатный ключ с console.groq.com
+OPENCODE_API_PASSWORD=ваш_сгенерированный_пароль
+TAILSCALE_AUTH_KEY=tskey-auth-... # с Tailscale admin panel
 ```
 
 ### 4. Запуск
@@ -165,26 +172,28 @@ ANTHROPIC_API_KEY=sk-ant-... # с console.anthropic.com
 
 ## 📊 РЕСУРСЫ
 
-### Распределение памяти (3GB):
+### Распределение памяти (7GB):
 
 | Сервис | RAM | Notes |
 |--------|-----|-------|
-| Paperclip | 1 GB | Основное приложение |
+| Paperclip | 1.5 GB | Основное приложение |
 | PostgreSQL | 1 GB | База данных |
-| Redis | 128 MB | Кэширование |
+| Redis | 256 MB | Кэширование |
 | Traefik | 128 MB | Reverse proxy |
-| **System reserve** | 744 MB | Buffer |
-| **Total** | 3 GB | |
+| OpenCode | 512 MB | AI агент (Groq API) |
+| **System reserve** | 3.6 GB | Buffer |
+| **Total** | 7 GB | |
 
 ### CPU:
 
 | Сервис | CPU |
 |--------|-----|
 | Paperclip | 1 core |
+| OpenCode | 0.5 cores |
 | PostgreSQL | 0.5 cores |
 | Redis | 0.25 cores |
 | Traefik | 0.25 cores |
-| **Total** | 2 cores |
+| **Total** | 2.5 cores |
 
 ---
 
@@ -261,6 +270,19 @@ cat backup_20240101.sql | docker compose exec -T db psql -U paperclip
 **Q: Мало памяти**
 ```
 Увеличьте RAM сервера или уменьшите лимиты в docker-compose.yml
+```
+
+**Q: Как работает OpenCode + Groq?**
+```
+OpenCode использует бесплатный Groq API для AI задач.
+Модель: llama-3.3-70b-versatile (128k контекст)
+Лимиты: ~30 запросов в минуту (бесплатный tier)
+```
+
+**Q: Нужен ли платный API ключ?**
+```
+НЕТ! Используется бесплатный Groq API.
+Получите ключ здесь: https://console.groq.com/keys
 ```
 
 ---

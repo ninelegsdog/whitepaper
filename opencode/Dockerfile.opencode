@@ -1,0 +1,48 @@
+# =============================================================================
+# OpenCode Dockerfile - Server Mode with Groq API
+# =============================================================================
+# Multi-stage build for minimal image size
+# 
+# Security features:
+#   - Non-root user (node:node, UID 1000)
+#   - No new privileges
+#   - Dropped Linux capabilities
+# =============================================================================
+
+# syntax=docker/dockerfile:1-labs
+
+# =============================================================================
+# Stage 1: Build
+# =============================================================================
+FROM node:20-alpine AS builder
+
+RUN npm install -g opencode-ai
+
+# =============================================================================
+# Stage 2: Production
+# =============================================================================
+FROM node:20-alpine
+
+RUN apk add --no-cache \
+    dumb-init \
+    wget \
+    ca-certificates
+
+COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
+
+RUN addgroup -g 1000 -S node && \
+    adduser -S node -u 1000 -G node && \
+    mkdir -p /home/node/.config/opencode && \
+    chown -R node:node /home/node
+
+USER node
+WORKDIR /home/node
+
+EXPOSE 4096
+
+ENV HOME=/home/node \
+    PATH=/usr/local/bin:$PATH
+
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
