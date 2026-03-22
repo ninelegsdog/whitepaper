@@ -42,11 +42,11 @@ echo "  ✓ Исходящие разрешены по умолчанию"
 
 echo "[5/8] Добавление правил..."
 # SSH (всегда важно!)
-ufw allow 22/tcp comment 'SSH'
+ufw allow 2222/tcp comment 'SSH'
 
 # Tailscale VPN
 ufw allow from 100.64.0.0/10 to any comment 'Tailscale VPN'
-echo "  ✓ SSH (порт 22) - разрешён"
+echo "  ✓ SSH (порт 2222) - разрешён"
 echo "  ✓ Tailscale VPN (100.64.0.0/10) - разрешён"
 
 # Loopback
@@ -61,7 +61,7 @@ echo "ВНИМАНИЕ: UFW будет активирован!"
 echo "─────────────────────────────────────────────────────────────────"
 echo ""
 echo "Убедитесь, что:"
-echo "  1. Вы подключены по SSH (порт 22)"
+echo "  1. Вы подключены по SSH (порт 2222)"
 echo "  2. Или вы физически за компьютером"
 echo ""
 read -p "Нажмите Enter для продолжения..."
@@ -82,7 +82,7 @@ echo "FIREWALL НАСТРОЕН!"
 echo "─────────────────────────────────────────────────────────────────"
 echo ""
 echo "РАЗРЕШЁННЫЕ ПОДКЛЮЧЕНИЯ:"
-echo "  • SSH (порт 22)"
+echo "  • SSH (порт 2222)"
 echo "  • Tailscale VPN (100.64.0.0/10)"
 echo ""
 echo "ЗАБЛОКИРОВАННЫЕ ПОДКЛЮЧЕНИЯ:"
@@ -91,7 +91,7 @@ echo ""
 echo "ПОЛЕЗНЫЕ КОМАНДЫ:"
 echo "  ufw status          - показать статус"
 echo "  ufw allow 80/tcp    - разрешить порт"
-echo "  ufw delete allow 22 - удалить правило"
+echo "  ufw delete allow 2222 - удалить правило"
 echo "  ufw disable         - отключить firewall"
 echo ""
 
