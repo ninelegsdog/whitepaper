@@ -45,11 +45,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.paperclip.local`)"
-      - "traefik.http.routers.prometheus.entrypoints=websecure"
-      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   # =============================================================================
   # Grafana
@@ -85,11 +80,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.paperclip.local`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   # =============================================================================
   # Alertmanager
