@@ -106,4 +106,4 @@ serversTransport:
 # Ping
 # =============================================================================
 ping:
-  entryPoint: web
+  entryPoint: websecure

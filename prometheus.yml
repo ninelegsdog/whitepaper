@@ -46,4 +46,4 @@ scrape_configs:
   # Traefik metrics
   - job_name: 'traefik'
     static_configs:
-      - targets: ['traefik:9090']
+      - targets: ['traefik:8080']

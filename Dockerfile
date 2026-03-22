@@ -97,13 +97,9 @@ WORKDIR /app
 # Copy built application from builder stage
 COPY --from=builder --chown=node:node /app /app
 
-# Install global CLI tools (production only)
-# These tools are optional - failures are logged but don't block the build
-RUN npm install --global --omit=dev \
-    @openai/codex@latest \
-    @anthropic-ai/claude-code@latest \
-    opencode-ai@latest \
-    2>/dev/null || echo "WARNING: Global CLI tools installation failed - these are optional"
+# NOTE: Global CLI tools removed - they can be installed separately if needed
+# Install individual tools with: npm install -g <package>@<version>
+# Use pinned versions with checksums for security
 
 # Create paperclip directory for data persistence
 RUN mkdir -p /paperclip && \

@@ -30,9 +30,6 @@ receivers:
   - name: 'critical-alerts'
     webhook_configs:
       - url: 'http://paperclip:3100/api/alerts/webhook'
-    opsgenie_configs:
-      - api_key: '${OPSGENIE_API_KEY}'
-        message: 'Critical Alert: {{ .GroupLabels.alertname }}'
 
   - name: 'warning-alerts'
     webhook_configs:

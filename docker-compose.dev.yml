@@ -55,6 +55,10 @@ services:
       start_period: 15s
     stdin_open: true
     tty: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # =============================================================================
   # PostgreSQL Database (Development)
@@ -76,7 +80,7 @@ services:
     networks:
       - dev-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U paperclip -d paperclip_dev"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-paperclip} -d ${POSTGRES_DB:-paperclip_dev}"]
       interval: 10s
       timeout: 5s
       retries: 5
