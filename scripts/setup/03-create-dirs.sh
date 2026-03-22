@@ -37,8 +37,6 @@ mkdir -p /var/lib/postgresql/paperclip
 mkdir -p /var/lib/redis
 
 echo "[3/6] Назначение прав на директории..."
-# Основные директории
-chown -R root:docker "$PAPERCLIP_HOME"
 chmod -R 755 "$PAPERCLIP_HOME"
 
 # Data директории (для Paperclip - UID 1000)
