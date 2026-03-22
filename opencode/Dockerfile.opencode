@@ -21,12 +21,12 @@ RUN apk add --no-cache curl tar
 ARG TARGETARCH
 ARG TARGETOS
 
-# Verify checksum for security (update SHA256 with value from GitHub release)
-ARG OPENCODE_SHA256=""
+# SHA256 checksum for security verification
+# Update with value from: https://github.com/anomalyco/opencode/releases/latest
+# Get with: curl -sL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-x64-musl.tar.gz" | sha256sum
+ARG OPENCODE_SHA256="660f7319f748a66bda1748c1e7ae74dade1ba3837e6c181263506d88e7b5a4b6"
 RUN curl -fsSL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-x64-musl.tar.gz" -o /tmp/opencode.tar.gz && \
-    if [ -n "$OPENCODE_SHA256" ]; then \
-        echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - || exit 1; \
-    fi && \
+    echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin && \
     chmod +x /usr/local/bin/opencode && \
     rm /tmp/opencode.tar.gz
@@ -40,13 +40,15 @@ RUN apk add --no-cache \
     dumb-init \
     ca-certificates \
     gcompat \
-    libstdc++
+    libstdc++ \
+    curl
 
 COPY --from=downloader /usr/local/bin/opencode /usr/local/bin/opencode
 
 RUN mkdir -p /home/node/.config/opencode && \
-    addgroup -S node && adduser -S node -G node && \
-    chown -R node:node /home/node
+    addgroup -S node && adduser -S node -G node
+
+COPY --chown=node:node config.json /home/node/.config/opencode/config.json
 
 USER node
 WORKDIR /home/node
@@ -58,4 +60,4 @@ ENV HOME=/home/node \
 
 ENTRYPOINT ["dumb-init", "--"]
 
-CMD ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096"]
+CMD ["opencode", "serve", "--hostname", "0.0.0.0", "--port", "4096", "--log-level", "DEBUG"]

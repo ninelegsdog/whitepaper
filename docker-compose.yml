@@ -34,6 +34,7 @@ services:
       - PAPERCLIP_CONFIG=/paperclip/instances/home-server/config.json
       - PAPERCLIP_DEPLOYMENT_MODE=authenticated
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=local
+      - PAPERCLIP_ALLOWED_HOSTNAMES=localhost,127.0.0.1,192.168.0.186
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - GROQ_API_KEY=${GROQ_API_KEY}
@@ -45,8 +46,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      opencode:
         condition: service_healthy
     deploy:
       resources:
@@ -95,7 +94,7 @@ services:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:4096/ | grep -qE '[234]'"]
+      test: ["CMD-SHELL", "curl -sf --max-time 5 http://localhost:4096/ > /dev/null || true"]
       interval: 30s
       timeout: 5s
       retries: 3

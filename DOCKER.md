@@ -18,7 +18,7 @@ This repository contains Docker configurations for deploying Paperclip, an AI ag
 
 - **Maximum Security**: Non-root users, read-only filesystems, dropped capabilities
 - **Scalability**: Multi-instance deployment with load balancing
-- **VPN-Only Access**: Traefik reverse proxy with Tailscale integration
+- **VPN-Only Access**: Direct access via Tailscale VPN
 - **Monitoring**: Prometheus + Grafana for observability
 - **CI/CD**: GitHub Actions workflows for automated builds and deployment
 - **AI Integration**: OpenCode with Groq API (free tier) for AI agent capabilities
@@ -190,61 +190,23 @@ Connect to Node.js debugger:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Tailscale VPN Network                        │
-│                    (paperclip.local)                            │
+│                    (192.168.0.186)                              │
 └─────────────────────────────────────────────────────────────────┘
                             │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Traefik Reverse Proxy                       │
-│                     (Load Balancer)                             │
-└─────────────────────────────────────────────────────────────────┘
-                    │                    │
-        ┌───────────┴───────┐    ┌───────┴───────────┐
-        │  Paperclip #1     │    │  Paperclip #2    │
-        │  (Container)     │    │  (Container)     │
-        └───────────┬───────┘    └───────┬───────────┘
-                    │                    │
-        ┌───────────┴────────────────────┴───────┐
-        │         Shared Data Volume             │
-        │         (/paperclip)                    │
-        └─────────────────────────────────────────┘
-                    │                    │
-        ┌───────────┴───────┐    ┌───────┴───────────┐
-        │   PostgreSQL     │    │     Redis         │
-        │   (Database)     │    │    (Cache)        │
-        └───────────────────┘    └───────────────────┘
-                    │                    │
-        ┌───────────┴───────┐
-        │    OpenCode       │
-        │    (Groq API)     │
-        │   :4096           │
-        └───────────────────┘
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Tailscale VPN Network                        │
-│                    (paperclip.local)                           │
-└─────────────────────────────────────────────────────────────────┘
+            ┌───────────────┼───────────────┐
+            │               │               │
+            ▼               ▼               ▼
+    ┌───────────┐   ┌───────────┐   ┌───────────┐
+    │ Paperclip │   │   OpenCode │   │ PostgreSQL│
+    │   :3100    │   │   :4096    │   │   :5432   │
+    └───────────┘   └───────────┘   └───────────┘
+            │               │               │
+            └───────────────┼───────────────┘
                             │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Traefik Reverse Proxy                       │
-│                     (Load Balancer)                            │
-└─────────────────────────────────────────────────────────────────┘
-                    │                    │
-        ┌───────────┴───────┐    ┌───────┴───────────┐
-        │  Paperclip #1    │    │  Paperclip #2    │
-        │  (Container)     │    │  (Container)     │
-        └───────────┬───────┘    └───────┬───────────┘
-                    │                    │
-        ┌───────────┴────────────────────┴───────┐
-        │         Shared Data Volume             │
-        │         (/paperclip)                    │
-        └─────────────────────────────────────────┘
-                    │                    │
-        ┌───────────┴───────┐    ┌───────┴───────────┐
-        │   PostgreSQL     │    │     Redis         │
-        │   (Database)      │    │    (Cache)        │
-        └───────────────────┘    └───────────────────┘
+                    ┌───────┴───────┐
+                    │    Redis      │
+                    │   :6379      │
+                    └───────────────┘
 ```
 
 ### Production Setup
@@ -314,10 +276,10 @@ docker compose logs -f
 
 ```bash
 # Check health endpoint
-curl https://paperclip.local/health
+curl http://192.168.0.186:3100/health
 
 # Check API
-curl https://paperclip.local/api/health
+curl http://192.168.0.186:3100/api/health
 ```
 
 ## Monitoring Setup
@@ -333,9 +295,10 @@ docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 
 | Tool | URL | Default Credentials |
 |------|-----|-------------------|
-| Grafana | https://grafana.paperclip.local | admin / (from .env) |
-| Prometheus | https://prometheus.paperclip.local | - |
-| Traefik Dashboard | https://traefik.paperclip.local | - |
+| Grafana | http://192.168.0.186:3000 | admin / (from GRAFANA_PASSWORD in .env) |
+| Prometheus | http://192.168.0.186:9090 | - |
+| Alertmanager | http://192.168.0.186:9093 | - |
+| Loki | http://192.168.0.186:3101 | - |
 
 ### Create Grafana Dashboard
 
@@ -396,21 +359,6 @@ services:
     # ... copy configuration from paperclip-2
     environment:
       - REPLICA_ID=3
-```
-
-### Update Traefik
-
-Update `traefik/dynamic/paperclip.yml`:
-
-```yaml
-http:
-  services:
-    paperclip-service:
-      loadBalancer:
-        servers:
-          - url: "http://paperclip-1:3100"
-          - url: "http://paperclip-2:3100"
-          - url: "http://paperclip-3:3100"  # Add new instance
 ```
 
 ### Rolling Update

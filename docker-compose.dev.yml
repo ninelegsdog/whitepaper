@@ -39,14 +39,12 @@ services:
       - HOST=0.0.0.0
       - SERVE_UI=true
       - PAPERCLIP_HOME=/app/data
-      - DEBUG=true
-      - SOURCE_MAP=true
-      - WATCH=true
+      - NODE_OPTIONS=--enable-source-maps
       # Database - use embedded PGlite in dev
       - DATABASE_URL=file:./data/pglite/paperclip.db
       # AI API Keys (set in .env)
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s

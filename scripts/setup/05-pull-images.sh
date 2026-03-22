@@ -26,19 +26,16 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "[1/5] Загрузка Traefik..."
-docker pull traefik:v3.0
-
-echo "[2/5] Загрузка PostgreSQL..."
+echo "[1/4] Загрузка PostgreSQL..."
 docker pull postgres:17-alpine
 
-echo "[3/5] Загрузка Redis..."
+echo "[2/4] Загрузка Redis..."
 docker pull redis:7-alpine
 
-echo "[4/5] Проверка загруженных образов..."
-docker images | grep -E "traefik|postgres|redis|paperclip"
+echo "[3/4] Проверка загруженных образов..."
+docker images | grep -E "postgres|redis|paperclip"
 
-echo "[5/5] Очистка неиспользуемых образов..."
+echo "[4/4] Очистка неиспользуемых образов..."
 docker image prune -f
 
 echo ""

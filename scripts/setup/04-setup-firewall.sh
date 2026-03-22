@@ -68,7 +68,7 @@ read -p "Нажмите Enter для продолжения..."
 
 # Отключаем ufw перед включением (может заблокировать SSH)
 ufw disable
-echo "y" | ufw enable
+ufw --force enable
 
 echo "[7/8] Проверка статуса..."
 ufw status verbose

@@ -35,11 +35,10 @@ docker compose up -d
 ```
 ├── docker-compose.yml      # Production stack
 ├── Dockerfile              # Paperclip image
-├── Dockerfile.opencode     # OpenCode image
+├── Dockerfile.dev         # Development image
 ├── opencode/               # OpenCode configuration
 │   ├── Dockerfile.opencode
 │   └── opencode-config.json
-├── traefik/               # Reverse proxy config
 ├── scripts/                # Setup scripts
 │   ├── setup/             # (sudo) Installation scripts
 │   ├── run.sh            # Start script
@@ -55,7 +54,19 @@ docker compose up -d
 |--------|------|----------|
 | Paperclip | 3100 | Основное приложение |
 | OpenCode | 4096 | AI агент (Groq API) |
-| Traefik | 80/443 | Reverse proxy |
+
+### Мониторинг (опционально)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml --profile monitoring up -d
+```
+
+| Сервис | Порт | Описание |
+|--------|------|----------|
+| Prometheus | 9090 | Метрики |
+| Grafana | 3000 | Визуализация |
+| Alertmanager | 9093 | Оповещения |
+| Loki | 3101 | Логи |
 
 ## Документация
 
