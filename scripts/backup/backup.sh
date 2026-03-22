@@ -15,7 +15,7 @@
 #   BACKUP_RETENTION_DAYS - Days to keep backups (default: 90)
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -106,7 +106,8 @@ backup_postgres() {
     # Create backup
     docker exec "$db_container" pg_dump -U "$db_user" -d "$db_name" | gzip > "${BACKUP_PATH}/paperclip-db.sql.gz"
     
-    local size=$(du -h "${BACKUP_PATH}/paperclip-db.sql.gz" | cut -f1)
+    local size
+    size=$(du -h "${BACKUP_PATH}/paperclip-db.sql.gz" | cut -f1)
     log_success "PostgreSQL backup created (${size})"
 }
 
@@ -123,10 +124,12 @@ backup_redis() {
     # Trigger SAVE and copy RDB file
     docker exec "$redis_container" redis-cli SAVE
     
-    local rdb_path=$(docker exec "$redis_container" redis-cli CONFIG GET dir | tail -n 1)
+    local rdb_path
+    rdb_path=$(docker exec "$redis_container" redis-cli CONFIG GET dir | tail -n 1)
     docker cp "${redis_container}:${rdb_path}/dump.rdb" "${BACKUP_PATH}/dump.rdb"
     
-    local size=$(du -h "${BACKUP_PATH}/dump.rdb" | cut -f1)
+    local size
+    size=$(du -h "${BACKUP_PATH}/dump.rdb" | cut -f1)
     log_success "Redis backup created (${size})"
 }
 
@@ -142,7 +145,8 @@ backup_paperclip_data() {
     
     tar -czf "${BACKUP_PATH}/paperclip-data.tar.gz" -C "${PROJECT_ROOT}" data/paperclip 2>/dev/null || true
     
-    local size=$(du -h "${BACKUP_PATH}/paperclip-data.tar.gz" 2>/dev/null | cut -f1 || echo "0")
+    local size
+    size=$(du -h "${BACKUP_PATH}/paperclip-data.tar.gz" 2>/dev/null | cut -f1 || echo "0")
     log_success "Paperclip data backup created (${size})"
 }
 
@@ -166,7 +170,8 @@ backup_configs() {
     tar -czf "${BACKUP_PATH}/configs.tar.gz" -C "$configs_dir" .
     rm -rf "$configs_dir"
     
-    local size=$(du -h "${BACKUP_PATH}/configs.tar.gz" | cut -f1)
+    local size
+    size=$(du -h "${BACKUP_PATH}/configs.tar.gz" | cut -f1)
     log_success "Configuration backup created (${size})"
 }
 
@@ -174,7 +179,8 @@ create_manifest() {
     log "Creating backup manifest..."
     
     local manifest="${BACKUP_DIR}/backup-manifest.json"
-    local total_size=$(du -sh "$BACKUP_PATH" | cut -f1)
+    local total_size
+    total_size=$(du -sh "$BACKUP_PATH" | cut -f1)
     
     cat > "$manifest" << EOF
 {
@@ -211,13 +217,14 @@ cleanup_old_backups() {
     # Find and remove old backups
     while IFS= read -r backup; do
         if [ -d "$backup" ]; then
-            local size=$(du -sb "$backup" | cut -f1)
+            local size
+            size=$(du -sb "$backup" | cut -f1)
             freed_space=$((freed_space + size))
             rm -rf "$backup"
             deleted=$((deleted + 1))
             log "Removed: $(basename "$backup")"
         fi
-    done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup-*" -mtime +${RETENTION_DAYS} 2>/dev/null)
+    done < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup-*" -mtime +"${RETENTION_DAYS}" 2>/dev/null)
     
     # Convert freed space to human readable
     if [ $freed_space -gt 1073741824 ]; then
@@ -239,7 +246,7 @@ calculate_checksum() {
     log "Calculating checksum..."
     
     cd "$BACKUP_PATH"
-    find . -type f -exec md5sum {} \; > md5sum.txt
+    find . -type f -print0 | xargs -0 md5sum > md5sum.txt
     cd - > /dev/null
     
     log_success "Checksum created"

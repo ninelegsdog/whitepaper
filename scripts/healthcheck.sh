@@ -118,7 +118,7 @@ check_disk_space() {
     log_info "Checking disk space..."
 
     # Get usage percentage of /paperclip or root
-    local disk_usage=$(df -h /paperclip 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
+    disk_usage=$(df -h /paperclip 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
     
     if [ -z "$disk_usage" ]; then
         disk_usage=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
@@ -148,11 +148,11 @@ check_memory() {
     log_info "Checking memory usage..."
 
     if [ -f /sys/fs/cgroup/memory/memory.usage_in_bytes ]; then
-        local memory_usage=$(cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null)
-        local memory_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null)
+        memory_usage=$(cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null)
+        memory_limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null)
         
         if [ -n "$memory_usage" ] && [ -n "$memory_limit" ] && [ "$memory_limit" -gt 0 ]; then
-            local usage_percent=$((memory_usage * 100 / memory_limit))
+            usage_percent=$((memory_usage * 100 / memory_limit))
             if [ "$usage_percent" -lt 90 ]; then
                 log_success "Memory OK (${usage_percent}% used)"
                 return 0
@@ -197,7 +197,7 @@ check_api_endpoint() {
     log_info "Checking API endpoint..."
 
     if command -v curl > /dev/null 2>&1; then
-        local api_response=$(curl -sf -m "$TIMEOUT" \
+        api_response=$(curl -sf -m "$TIMEOUT" \
             "http://${PAPERCLIP_HOST}:${PAPERCLIP_PORT}/api/health" 2>/dev/null)
         
         if [ -n "$api_response" ]; then

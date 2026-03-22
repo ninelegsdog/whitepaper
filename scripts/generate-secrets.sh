@@ -85,7 +85,8 @@ generate_better_auth_secret() {
         return 0
     fi
     
-    local secret=$(generate_random_secret 64)
+    local secret
+    secret=$(generate_random_secret 64)
     echo "$secret" > "$secret_file"
     secure_permissions "$secret_file"
     log_success "Created BETTER_AUTH_SECRET"
@@ -100,7 +101,8 @@ generate_db_password() {
         return 0
     fi
     
-    local password=$(generate_random_secret 48)
+    local password
+    password=$(generate_random_secret 48)
     echo "$password" > "$password_file"
     secure_permissions "$password_file"
     log_success "Created database password"
@@ -115,7 +117,8 @@ generate_jwt_secret() {
         return 0
     fi
     
-    local secret=$(generate_random_secret 64)
+    local secret
+    secret=$(generate_random_secret 64)
     echo "$secret" > "$secret_file"
     secure_permissions "$secret_file"
     log_success "Created JWT secret"
@@ -130,7 +133,8 @@ generate_encryption_key() {
         return 0
     fi
     
-    local key=$(generate_random_secret 32)
+    local key
+    key=$(generate_random_secret 32)
     echo "$key" > "$key_file"
     secure_permissions "$key_file"
     log_success "Created encryption key"
@@ -145,7 +149,8 @@ generate_session_secret() {
         return 0
     fi
     
-    local secret=$(generate_random_secret 64)
+    local secret
+    secret=$(generate_random_secret 64)
     echo "$secret" > "$secret_file"
     secure_permissions "$secret_file"
     log_success "Created session secret"
@@ -160,7 +165,8 @@ generate_replica_id() {
         return 0
     fi
     
-    local replica_id=$(generate_uuid)
+    local replica_id
+    replica_id=$(generate_uuid)
     echo "$replica_id" > "$id_file"
     secure_permissions "$id_file"
     log_success "Created replica ID: $replica_id"
@@ -187,17 +193,17 @@ generate_env_file() {
     # Add/update secrets
     if [ -f "${SECRETS_DIR}/BETTER_AUTH_SECRET" ]; then
         if grep -q "^BETTER_AUTH_SECRET=" "$ENV_FILE" 2>/dev/null; then
-            sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(cat ${SECRETS_DIR}/BETTER_AUTH_SECRET)|" "$ENV_FILE"
+            sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(cat "${SECRETS_DIR}"/BETTER_AUTH_SECRET)|" "$ENV_FILE"
         else
-            echo "BETTER_AUTH_SECRET=$(cat ${SECRETS_DIR}/BETTER_AUTH_SECRET)" >> "$ENV_FILE"
+            echo "BETTER_AUTH_SECRET=$(cat "${SECRETS_DIR}"/BETTER_AUTH_SECRET)" >> "$ENV_FILE"
         fi
     fi
     
     if [ -f "${SECRETS_DIR}/POSTGRES_PASSWORD" ]; then
         if grep -q "^POSTGRES_PASSWORD=" "$ENV_FILE" 2>/dev/null; then
-            sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(cat ${SECRETS_DIR}/POSTGRES_PASSWORD)|" "$ENV_FILE"
+            sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(cat "${SECRETS_DIR}"/POSTGRES_PASSWORD)|" "$ENV_FILE"
         else
-            echo "POSTGRES_PASSWORD=$(cat ${SECRETS_DIR}/POSTGRES_PASSWORD)" >> "$ENV_FILE"
+            echo "POSTGRES_PASSWORD=$(cat "${SECRETS_DIR}"/POSTGRES_PASSWORD)" >> "$ENV_FILE"
         fi
     fi
     
@@ -256,7 +262,8 @@ generate_opencode_password() {
         return 0
     fi
     
-    local password=$(generate_random_secret 32)
+    local password
+    password=$(generate_random_secret 32)
     echo "$password" > "$password_file"
     secure_permissions "$password_file"
     log_success "Created OpenCode API password"

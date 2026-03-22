@@ -11,7 +11,7 @@
 #   ./cleanup.sh --space 5GB       # Delete to free space
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -39,12 +39,12 @@ log_error() {
 }
 
 format_size() {
-    local size=$1
-    if [ $size -gt 1073741824 ]; then
+    local size="$1"
+    if [ "$size" -gt 1073741824 ]; then
         echo "$(echo "scale=2; $size/1073741824" | bc 2>/dev/null || echo "$((size / 1073741824))")GB"
-    elif [ $size -gt 1048576 ]; then
+    elif [ "$size" -gt 1048576 ]; then
         echo "$(echo "scale=2; $size/1048576" | bc 2>/dev/null || echo "$((size / 1048576))")MB"
-    elif [ $size -gt 1024 ]; then
+    elif [ "$size" -gt 1024 ]; then
         echo "$((size / 1024))KB"
     else
         echo "${size}B"
@@ -53,22 +53,23 @@ format_size() {
 
 get_backup_age() {
     local backup_path="$1"
-    local age_seconds=$(($(date +%s) - $(stat -c %Y "$backup_path" 2>/dev/null || echo "0")))
+    local age_seconds
+    age_seconds=$(($(date +%s) - $(stat -c %Y "$backup_path" 2>/dev/null || echo "0")))
     echo $((age_seconds / 86400))
 }
 
 find_old_backups() {
     local days="$1"
     
-    find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup-*" -mtime +${days} 2>/dev/null
+    find "$BACKUP_DIR" -maxdepth 1 -type d -name "backup-*" -mtime +"${days}" 2>/dev/null
 }
 
 find_large_backups() {
     local target_space_bytes="$1"
     
     # Find backups sorted by size (largest first) that would free enough space
-    du -sb "$BACKUP_DIR"/backup-* 2>/dev/null | sort -rn | while read size path; do
-        if [ $target_space_bytes -gt 0 ]; then
+    du -sb "$BACKUP_DIR"/backup-* 2>/dev/null | sort -rn | while read -r size path; do
+        if [ "$target_space_bytes" -gt 0 ]; then
             echo "$path"
             target_space_bytes=$((target_space_bytes - size))
         fi
@@ -89,7 +90,7 @@ parse_size_to_bytes() {
             KB|K) multiplier=1024 ;;
         esac
         
-        echo "$(echo "$num * $multiplier" | bc 2>/dev/null || echo "$num")" | cut -d'.' -f1
+        echo "$num * $multiplier" | bc 2>/dev/null || echo "$num"
     else
         echo "0"
     fi
@@ -116,12 +117,15 @@ dry_run() {
         
         while IFS= read -r backup; do
             if [ -d "$backup" ]; then
-                local name=$(basename "$backup")
-                local size=$(du -sb "$backup" 2>/dev/null | cut -f1)
-                local age=$(get_backup_age "$backup")
+                local name
+                local size
+                local age
+                name=$(basename "$backup")
+                size=$(du -sb "$backup" 2>/dev/null | cut -f1)
+                age=$(get_backup_age "$backup")
                 
                 echo -e "  ${YELLOW}Would delete:${NC} $name"
-                echo -e "    Size: $(format_size $size)"
+                echo -e "    Size: $(format_size "$size")"
                 echo -e "    Age: $age days"
                 echo ""
                 
@@ -133,18 +137,22 @@ dry_run() {
     
     # Find backups to free space
     if [ -n "$target_space" ]; then
-        local target_bytes=$(parse_size_to_bytes "$target_space")
+        local target_bytes
+        target_bytes=$(parse_size_to_bytes "$target_space")
         log "Backups to delete to free ${target_space}:"
         echo ""
         
         while IFS= read -r backup; do
             if [ -d "$backup" ]; then
-                local name=$(basename "$backup")
-                local size=$(du -sb "$backup" 2>/dev/null | cut -f1)
-                local age=$(get_backup_age "$backup")
+                local name
+                local size
+                local age
+                name=$(basename "$backup")
+                size=$(du -sb "$backup" 2>/dev/null | cut -f1)
+                age=$(get_backup_age "$backup")
                 
                 echo -e "  ${YELLOW}Would delete:${NC} $name"
-                echo -e "    Size: $(format_size $size)"
+                echo -e "    Size: $(format_size "$size")"
                 echo -e "    Age: $age days"
                 echo ""
                 
@@ -173,8 +181,10 @@ cleanup() {
     if [ -n "$days" ] && [ "$days" -gt 0 ]; then
         while IFS= read -r backup; do
             if [ -d "$backup" ]; then
-                local name=$(basename "$backup")
-                local size=$(du -sb "$backup" 2>/dev/null | cut -f1)
+                local name
+                local size
+                name=$(basename "$backup")
+                size=$(du -sb "$backup" 2>/dev/null | cut -f1)
                 
                 if [ "$force" = true ]; then
                     rm -rf "$backup"
@@ -189,12 +199,15 @@ cleanup() {
     
     # Delete backups to free space
     if [ -n "$target_space" ]; then
-        local target_bytes=$(parse_size_to_bytes "$target_space")
+        local target_bytes
+        target_bytes=$(parse_size_to_bytes "$target_space")
         
         while IFS= read -r backup; do
             if [ -d "$backup" ]; then
-                local name=$(basename "$backup")
-                local size=$(du -sb "$backup" 2>/dev/null | cut -f1)
+                local name
+                local size
+                name=$(basename "$backup")
+                size=$(du -sb "$backup" 2>/dev/null | cut -f1)
                 
                 if [ "$force" = true ]; then
                     rm -rf "$backup"
@@ -235,7 +248,7 @@ confirm_cleanup() {
     log_warning "Retention: $RETENTION_DAYS days"
     echo ""
     
-    read -p "Type 'yes' to continue: " confirm
+    read -r -p "Type 'yes' to continue: " confirm
     if [ "$confirm" != "yes" ]; then
         echo "Cleanup cancelled"
         exit 0

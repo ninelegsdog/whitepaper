@@ -10,7 +10,7 @@
 #   ./restore.sh --verify backup-20260322    # Verify backup integrity
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -74,9 +74,12 @@ list_backups() {
     
     for backup in "$BACKUP_DIR"/backup-*/; do
         if [ -d "$backup" ]; then
-            local name=$(basename "$backup")
-            local size=$(du -sh "$backup" 2>/dev/null | cut -f1 || echo "N/A")
-            local date=$(stat -c %y "$backup" 2>/dev/null | cut -d' ' -f1 || echo "N/A")
+            local name
+            local size
+            local date
+            name=$(basename "$backup")
+            size=$(du -sh "$backup" 2>/dev/null | cut -f1 || echo "N/A")
+            date=$(stat -c %y "$backup" 2>/dev/null | cut -d' ' -f1 || echo "N/A")
             printf "%-25s %10s %s\n" "$name" "$size" "$date"
         fi
     done
@@ -112,8 +115,7 @@ verify_backup() {
     
     # Check required files
     log "Checking required files..."
-    [ -f "${backup_path}/paperclip-db.sql.gz" ] || [ -f "${backup_path}/dump.rdb" ] || [ -f "${backup_path}/paperclip-data.tar.gz" ] || [ -f "${backup_path}/configs.tar.gz" ]
-    if [ $? -eq 0 ]; then
+    if [ -f "${backup_path}/paperclip-db.sql.gz" ] || [ -f "${backup_path}/dump.rdb" ] || [ -f "${backup_path}/paperclip-data.tar.gz" ] || [ -f "${backup_path}/configs.tar.gz" ]; then
         log_success "Backup contains data files"
     else
         log_error "No data files found in backup"
@@ -123,7 +125,7 @@ verify_backup() {
     # Check manifest
     if [ -f "${BACKUP_DIR}/backup-manifest.json" ]; then
         log "Backup manifest found"
-        cat "${BACKUP_DIR}/backup-manifest.json" | python3 -m json.tool > /dev/null 2>&1 || log_warning "Manifest is not valid JSON"
+        python3 -m json.tool < "${BACKUP_DIR}/backup-manifest.json" > /dev/null 2>&1 || log_warning "Manifest is not valid JSON"
     fi
     
     if [ $errors -eq 0 ]; then
@@ -212,7 +214,8 @@ restore_redis() {
     fi
     
     # Get Redis data directory
-    local redis_dir=$(docker exec "$redis_container" redis-cli CONFIG GET dir | tail -n 1)
+    local redis_dir
+    redis_dir=$(docker exec "$redis_container" redis-cli CONFIG GET dir | tail -n 1)
     
     # Stop Redis to ensure safe copy
     docker exec "$redis_container" redis-cli SHUTDOWN NOSAVE 2>/dev/null || true
@@ -248,7 +251,8 @@ restore_paperclip_data() {
     
     # Create backup of current data
     if [ -d "${PROJECT_ROOT}/data/paperclip" ]; then
-        local backup_current="${PROJECT_ROOT}/data/paperclip.pre-restore.$(date +%Y%m%d-%H%M%S)"
+        local backup_current
+        backup_current="${PROJECT_ROOT}/data/paperclip.pre-restore.$(date +%Y%m%d-%H%M%S)"
         log "Backing up current data to: $backup_current"
         mv "${PROJECT_ROOT}/data/paperclip" "$backup_current"
     fi
@@ -285,7 +289,7 @@ confirm_restore() {
     log_warning "============================================================"
     echo ""
     
-    read -p "Type 'yes' to continue: " confirm
+    read -r -p "Type 'yes' to continue: " confirm
     if [ "$confirm" != "yes" ]; then
         log "Restore cancelled"
         exit 0

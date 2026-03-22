@@ -22,12 +22,12 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 format_size() {
-    local size=$1
-    if [ $size -gt 1073741824 ]; then
+    local size="$1"
+    if [ "$size" -gt 1073741824 ]; then
         echo "$(echo "scale=2; $size/1073741824" | bc 2>/dev/null || echo "$((size / 1073741824))")GB"
-    elif [ $size -gt 1048576 ]; then
+    elif [ "$size" -gt 1048576 ]; then
         echo "$(echo "scale=2; $size/1048576" | bc 2>/dev/null || echo "$((size / 1048576))")MB"
-    elif [ $size -gt 1024 ]; then
+    elif [ "$size" -gt 1024 ]; then
         echo "$((size / 1024))KB"
     else
         echo "${size}B"
@@ -50,11 +50,13 @@ list_backups() {
         if [ -d "$backup" ]; then
             backups+=("$(basename "$backup")")
             count=$((count + 1))
-            total_size=$((total_size + $(du -sb "$backup" 2>/dev/null | cut -f1)))
+            local backup_size
+            backup_size=$(du -sb "$backup" 2>/dev/null | cut -f1)
+            total_size=$((total_size + backup_size))
         fi
     done
     
-    if [ $count -eq 0 ]; then
+    if [ "$count" -eq 0 ]; then
         echo -e "${YELLOW}No backups found${NC}"
         exit 0
     fi
@@ -70,10 +72,14 @@ list_backups() {
             local first=true
             for backup in "${backups[@]}"; do
                 local backup_path="${BACKUP_DIR}/${backup}"
-                local size=$(du -sb "$backup_path" 2>/dev/null | cut -f1)
-                local date=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f1)
-                local time=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f2 | cut -d'.' -f1)
-                local age_days=$(($(date +%s) - $(stat -c %Y "$backup_path")))
+                local size
+                local date
+                local time
+                local age_days
+                size=$(du -sb "$backup_path" 2>/dev/null | cut -f1)
+                date=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f1)
+                time=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f2 | cut -d'.' -f1)
+                age_days=$(($(date +%s) - $(stat -c %Y "$backup_path")))
                 age_days=$((age_days / 86400))
                 
                 local has_db="false"
@@ -97,7 +103,7 @@ list_backups() {
       "name": "$backup",
       "date": "$date",
       "time": "$time",
-      "size": "$(format_size $size)",
+      "size": "$(format_size "$size")",
       "size_bytes": $size,
       "age_days": $age_days,
       "components": {
@@ -120,7 +126,7 @@ EOF
             echo -e "${BLUE}=== Backup Statistics ===${NC}"
             echo ""
             echo "  Total backups: $count"
-            echo "  Total size:   $(format_size $total_size)"
+            echo "  Total size:   $(format_size "$total_size")"
             echo "  Average size:  $(format_size $((total_size / count)))"
             echo "  Backup dir:    $BACKUP_DIR"
             echo ""
@@ -130,14 +136,17 @@ EOF
             local newest="${backups[$((count - 1))]}"
             
             if [ -d "${BACKUP_DIR}/${oldest}" ]; then
-                local oldest_date=$(stat -c %y "${BACKUP_DIR}/${oldest}" 2>/dev/null | cut -d' ' -f1)
-                local oldest_age=$(($(date +%s) - $(stat -c %Y "${BACKUP_DIR}/${oldest}")))
+                local oldest_date
+                local oldest_age
+                oldest_date=$(stat -c %y "${BACKUP_DIR}/${oldest}" 2>/dev/null | cut -d' ' -f1)
+                oldest_age=$(($(date +%s) - $(stat -c %Y "${BACKUP_DIR}/${oldest}")))
                 oldest_age=$((oldest_age / 86400))
                 echo "  Oldest:        $oldest ($oldest_date, ${oldest_age} days ago)"
             fi
             
             if [ -d "${BACKUP_DIR}/${newest}" ]; then
-                local newest_date=$(stat -c %y "${BACKUP_DIR}/${newest}" 2>/dev/null | cut -d' ' -f1)
+                local newest_date
+                newest_date=$(stat -c %y "${BACKUP_DIR}/${newest}" 2>/dev/null | cut -d' ' -f1)
                 echo "  Newest:        $newest ($newest_date)"
             fi
             
@@ -153,26 +162,32 @@ EOF
             
             for backup in "${backups[@]}"; do
                 local backup_path="${BACKUP_DIR}/${backup}"
-                local size=$(du -sh "$backup_path" 2>/dev/null | cut -f1)
-                local age_seconds=$(($(date +%s) - $(stat -c %Y "$backup_path" 2>/dev/null || echo "0")))
-                local age_days=$((age_seconds / 86400))
-                local age_str="${age_days}d"
+                local size
+                local age_seconds
+                local age_days
+                local age_str
+                local date
+                local age_color
+                size=$(du -sh "$backup_path" 2>/dev/null | cut -f1)
+                age_seconds=$(($(date +%s) - $(stat -c %Y "$backup_path" 2>/dev/null || echo "0")))
+                age_days=$((age_seconds / 86400))
+                age_str="${age_days}d"
                 
-                if [ $age_days -eq 0 ]; then
+                if [ "$age_days" -eq 0 ]; then
                     age_str="today"
-                elif [ $age_days -eq 1 ]; then
+                elif [ "$age_days" -eq 1 ]; then
                     age_str="1d"
                 fi
                 
-                local date=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f1)
+                date=$(stat -c %y "$backup_path" 2>/dev/null | cut -d' ' -f1)
                 
                 # Color age
-                local age_color="$NC"
-                if [ $age_days -lt 7 ]; then
+                age_color="$NC"
+                if [ "$age_days" -lt 7 ]; then
                     age_color="$GREEN"
-                elif [ $age_days -lt 30 ]; then
+                elif [ "$age_days" -lt 30 ]; then
                     age_color="$BLUE"
-                elif [ $age_days -lt 60 ]; then
+                elif [ "$age_days" -lt 60 ]; then
                     age_color="$YELLOW"
                 else
                     age_color="$RED"
@@ -183,7 +198,7 @@ EOF
             
             echo ""
             echo -e "${BLUE}=== Summary ===${NC}"
-            echo "  Total: $count backups, $(format_size $total_size)"
+            echo "  Total: $count backups, $(format_size "$total_size")"
             echo ""
             ;;
     esac

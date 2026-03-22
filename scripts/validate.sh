@@ -9,7 +9,7 @@
 #   ./validate.sh --strict
 # =============================================================================
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -101,7 +101,8 @@ check_docker() {
     fi
     log_success "Docker daemon running"
     
-    local version=$(docker version --format '{{.Server.Version}}' 2>/dev/null)
+    local version
+    version=$(docker version --format '{{.Server.Version}}' 2>/dev/null)
     log_info "Docker version: $version"
 }
 
@@ -113,13 +114,18 @@ check_ports() {
     local monitoring_ports=(9090 3000 9093 9100 8080 3101)
     local all_ports=("${ports[@]}" "${monitoring_ports[@]}")
     
-    for port in "${all_ports[@]}"; do
-        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
-            log_warning "Port $port is in use"
-        else
-            log_success "Port $port available"
-        fi
-    done
+    # Note: This check may not work in all environments (Docker, WSL, etc.)
+    if command -v netstat >/dev/null 2>&1 || command -v ss >/dev/null 2>&1; then
+        for port in "${all_ports[@]}"; do
+            if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+                log_warning "Port $port is in use"
+            else
+                log_success "Port $port available"
+            fi
+        done
+    else
+        log_warning "netstat/ss not available, skipping port check"
+    fi
 }
 
 # Environment variables check
@@ -215,7 +221,8 @@ check_connectivity() {
     header "Service Connectivity"
     
     # Check if containers are running
-    local containers=$(docker ps --filter "name=paperclip" --format "{{.Names}}" 2>/dev/null)
+    local containers
+    containers=$(docker ps --filter "name=paperclip" --format "{{.Names}}" 2>/dev/null)
     
     if [ -z "$containers" ]; then
         log_warning "No Paperclip containers running (start with 'make up')"
@@ -223,11 +230,12 @@ check_connectivity() {
     fi
     
     log_info "Checking running containers..."
-    echo "$containers" | while read container; do
-        local status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "unknown")
-        if [ "$status" == "healthy" ]; then
+    echo "$containers" | while read -r container; do
+        local status
+        status=$(docker inspect --format='{{.State.Health.Status}}' "$container" 2>/dev/null || echo "unknown")
+        if [ "$status" = "healthy" ]; then
             log_success "$container: healthy"
-        elif [ "$status" == "starting" ]; then
+        elif [ "$status" = "starting" ]; then
             log_info "$container: starting..."
         else
             log_warning "$container: $status"
@@ -300,25 +308,28 @@ check_security() {
 check_resources() {
     header "System Resources"
     
-    local mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "0")
-    local mem_gb=$((mem_total / 1024 / 1024))
+    local mem_total
+    local mem_gb
+    local disk_avail
+    mem_total=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "0")
+    mem_gb=$((mem_total / 1024 / 1024))
     
     log_info "Total memory: ${mem_gb}GB"
     
-    if [ $mem_gb -ge 4 ]; then
+    if [ "$mem_gb" -ge 4 ]; then
         log_success "Memory sufficient for Paperclip"
-    elif [ $mem_gb -ge 2 ]; then
+    elif [ "$mem_gb" -ge 2 ]; then
         log_warning "Low memory (${mem_gb}GB) - may cause issues"
     else
         log_error "Insufficient memory (${mem_gb}GB) - need at least 4GB"
     fi
     
-    local disk_avail=$(df -BG "$PROJECT_ROOT" 2>/dev/null | tail -1 | awk '{print $4}' | tr -d 'G')
+    disk_avail=$(df -BG "$PROJECT_ROOT" 2>/dev/null | tail -1 | awk '{print $4}' | tr -d 'G')
     log_info "Available disk space: ${disk_avail}GB"
     
-    if [ $disk_avail -ge 10 ]; then
+    if [ "$disk_avail" -ge 10 ]; then
         log_success "Disk space sufficient"
-    elif [ $disk_avail -ge 5 ]; then
+    elif [ "$disk_avail" -ge 5 ]; then
         log_warning "Low disk space (${disk_avail}GB)"
     else
         log_error "Critical disk space (${disk_avail}GB) - need at least 10GB"
