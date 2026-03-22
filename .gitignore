@@ -21,6 +21,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Backups
+backups/
+*.sql.gz
+*.rdb
+*.tar.gz
+
+# Data directories
+data/
+
 # Тестовые покрытия
 coverage/
 *.lcov
