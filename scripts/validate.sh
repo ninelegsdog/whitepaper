@@ -27,7 +27,7 @@ ERRORS=0
 WARNINGS=0
 STRICT_MODE=false
 
-if [ "$1" == "--strict" ]; then
+if [ "${1:-}" == "--strict" ]; then
     STRICT_MODE=true
 fi
 
