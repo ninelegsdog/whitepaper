@@ -18,7 +18,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
@@ -56,7 +56,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -76,7 +76,7 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || wget -q --spider http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || curl -sf http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -91,7 +91,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "9093:9093"
+      - "127.0.0.1:9093:9093"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
@@ -123,7 +123,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "9100:9100"
+      - "127.0.0.1:9100:9100"
     networks:
       - backend
     command:
@@ -155,7 +155,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     networks:
       - backend
     volumes:
@@ -186,7 +186,7 @@ services:
     profiles:
       - monitoring
     ports:
-      - "3101:3100"
+      - "127.0.0.1:3101:3100"
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -198,7 +198,7 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || curl -sf http://localhost:3100/ready || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:3100/ready || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
