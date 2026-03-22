@@ -17,11 +17,9 @@ services:
     image: traefik:v3.0
     container_name: paperclip-traefik
     restart: unless-stopped
-    profiles:
-      - production
     ports:
-      - "443:443"
-      - "80:80"
+      - "8443:443"
+      - "8080:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -56,15 +54,11 @@ services:
   # Paperclip Main Instance
   # =============================================================================
   paperclip:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: reeoss/paperclipai-paperclip:latest
     container_name: paperclip-app
     restart: unless-stopped
-    profiles:
-      - production
-    expose:
-      - "3100"
+    ports:
+      - "3100:3100"
     volumes:
       - paperclip-data:/paperclip
       - paperclip-logs:/app/logs
@@ -77,6 +71,7 @@ services:
       - SERVE_UI=true
       - PAPERCLIP_HOME=/paperclip
       - PAPERCLIP_INSTANCE_ID=home-server
+      - PAPERCLIP_CONFIG=/paperclip/instances/home-server/config.json
       - PAPERCLIP_DEPLOYMENT_MODE=authenticated
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=vpn
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -90,9 +85,9 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       opencode:
-        condition: service_started
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -105,19 +100,16 @@ services:
         condition: on-failure
         delay: 10s
         max_attempts: 3
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M,mode=1777,nosuid,noexec
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/health || curl -sf http://localhost:3100/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.paperclip.rule=Host(`paperclip`)"
@@ -133,14 +125,11 @@ services:
     build:
       context: ./opencode
       dockerfile: Dockerfile.opencode
+    image: opencode:local
     container_name: paperclip-opencode
     restart: unless-stopped
-    profiles:
-      - production
     ports:
-      - "${OPENCODE_SERVER_PORT:-4096}:4096"
-    volumes:
-      - opencode-data:/home/node/.config/opencode
+      - "4096:4096"
     networks:
       - backend
     environment:
@@ -152,19 +141,16 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:4096/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:4096/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
 
   # =============================================================================
   # PostgreSQL Database
@@ -173,8 +159,6 @@ services:
     image: postgres:17-alpine
     container_name: paperclip-db
     restart: unless-stopped
-    profiles:
-      - production
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -215,16 +199,16 @@ services:
           cpus: '0.25'
           memory: 256M
     shm_size: 128mb
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # =============================================================================
   # Redis (Session/Cache)
@@ -233,8 +217,6 @@ services:
     image: redis:7-alpine
     container_name: paperclip-redis
     restart: unless-stopped
-    profiles:
-      - production
     command: >
       redis-server
       --maxmemory 128mb
@@ -254,15 +236,16 @@ services:
         reservations:
           cpus: '0.1'
           memory: 64M
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 # =============================================================================
 # Networks
@@ -292,14 +275,7 @@ volumes:
       o: bind
       device: ${PAPERCLIP_LOGS_DIR:-./logs}
   pgdata:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${POSTGRES_DATA_DIR:-./data/postgres}
   redis-data:
-    driver: local
-  opencode-data:
     driver: local
   traefik-certs:
   traefik-logs:

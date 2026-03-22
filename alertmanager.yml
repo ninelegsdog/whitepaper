@@ -25,18 +25,18 @@ route:
 receivers:
   - name: 'default'
     webhook_configs:
-      - url: 'http://localhost:3100/api/alerts/webhook'
+      - url: 'http://paperclip:3100/api/alerts/webhook'
 
   - name: 'critical-alerts'
     webhook_configs:
-      - url: 'http://localhost:3100/api/alerts/webhook'
+      - url: 'http://paperclip:3100/api/alerts/webhook'
     opsgenie_configs:
       - api_key: '${OPSGENIE_API_KEY}'
         message: 'Critical Alert: {{ .GroupLabels.alertname }}'
 
   - name: 'warning-alerts'
     webhook_configs:
-      - url: 'http://localhost:3100/api/alerts/webhook'
+      - url: 'http://paperclip:3100/api/alerts/webhook'
 
 inhibit_rules:
   - source_match:

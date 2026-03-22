@@ -156,8 +156,8 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: paperclip
-          POSTGRES_PASSWORD: paperclip
+          POSTGRES_USER: ${{ secrets.TEST_POSTGRES_USER || 'paperclip' }}
+          POSTGRES_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD || 'paperclip' }}
           POSTGRES_DB: paperclip
         options: >-
           --health-cmd pg_isready
@@ -186,9 +186,11 @@ jobs:
           platforms: linux/amd64
 
       - name: Run smoke test
+        env:
+          TEST_DB_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD || 'paperclip' }}
         run: |
           docker run -d --name smoke-test \
-            -e DATABASE_URL=postgres://paperclip:paperclip@host.docker.internal:5432/paperclip \
+            -e DATABASE_URL=postgres://paperclip:${TEST_DB_PASSWORD}@host.docker.internal:5432/paperclip \
             -p 3100:3100 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           
@@ -216,8 +218,8 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: paperclip
-          POSTGRES_PASSWORD: paperclip
+          POSTGRES_USER: ${{ secrets.TEST_POSTGRES_USER || 'paperclip' }}
+          POSTGRES_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD || 'paperclip' }}
           POSTGRES_DB: paperclip_test
         options: >-
           --health-cmd pg_isready
@@ -256,9 +258,11 @@ jobs:
           platforms: linux/amd64
 
       - name: Run integration tests
+        env:
+          TEST_DB_PASSWORD: ${{ secrets.TEST_POSTGRES_PASSWORD || 'paperclip' }}
         run: |
           docker run -d --name integration-test \
-            -e DATABASE_URL=postgres://paperclip:paperclip@host.docker.internal:5432/paperclip_test \
+            -e DATABASE_URL=postgres://paperclip:${TEST_DB_PASSWORD}@host.docker.internal:5432/paperclip_test \
             -e REDIS_URL=redis://host.docker.internal:6379 \
             -p 3100:3100 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}

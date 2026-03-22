@@ -13,14 +13,6 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: paperclip
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: paperclip
-          __path__: /var/log/paperclip/*.log
-
   - job_name: containers
     docker_sd_configs:
       - host: unix:///var/run/docker.sock

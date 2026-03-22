@@ -12,27 +12,40 @@
 # syntax=docker/dockerfile:1-labs
 
 # =============================================================================
-# Stage 1: Build
+# Stage 1: Download binary
 # =============================================================================
-FROM node:20-alpine AS builder
+FROM alpine:3.19 AS downloader
 
-RUN npm install -g opencode-ai
+RUN apk add --no-cache curl tar
+
+ARG TARGETARCH
+ARG TARGETOS
+
+# Verify checksum for security (update SHA256 with value from GitHub release)
+ARG OPENCODE_SHA256=""
+RUN curl -fsSL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-x64-musl.tar.gz" -o /tmp/opencode.tar.gz && \
+    if [ -n "$OPENCODE_SHA256" ]; then \
+        echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - || exit 1; \
+    fi && \
+    tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin && \
+    chmod +x /usr/local/bin/opencode && \
+    rm /tmp/opencode.tar.gz
 
 # =============================================================================
 # Stage 2: Production
 # =============================================================================
-FROM node:20-alpine
+FROM alpine:3.19
 
 RUN apk add --no-cache \
     dumb-init \
-    wget \
-    ca-certificates
+    ca-certificates \
+    gcompat \
+    libstdc++
 
-COPY --from=builder /usr/local/bin/opencode /usr/local/bin/opencode
+COPY --from=downloader /usr/local/bin/opencode /usr/local/bin/opencode
 
-RUN addgroup -g 1000 -S node && \
-    adduser -S node -u 1000 -G node && \
-    mkdir -p /home/node/.config/opencode && \
+RUN mkdir -p /home/node/.config/opencode && \
+    addgroup -S node && adduser -S node -G node && \
     chown -R node:node /home/node
 
 USER node

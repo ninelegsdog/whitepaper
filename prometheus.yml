@@ -28,8 +28,7 @@ scrape_configs:
   - job_name: 'paperclip'
     static_configs:
       - targets:
-          - 'paperclip-1:3100'
-          - 'paperclip-2:3100'
+          - 'paperclip:3100'
     metrics_path: '/metrics'
     scrape_interval: 30s
     scrape_timeout: 10s

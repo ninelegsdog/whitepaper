@@ -67,9 +67,7 @@ for dir in "$PAPERCLIP_DATA_DIR" "$POSTGRES_DATA_DIR"; do
     fi
 done
 
-echo "[3/5] Создание Docker сети..."
-docker network create paperclip-backend 2>/dev/null || true
-echo "  ✓ Сеть paperclip-backend готова"
+echo "[3/5] Проверка сети..."
 
 echo "[4/5] Запуск контейнеров..."
 docker compose up -d

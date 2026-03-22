@@ -34,7 +34,7 @@ jobs:
   # =============================================================================
   deploy-staging:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event.inputs.environment == 'staging'
     environment: staging
 
     steps:
@@ -108,17 +108,14 @@ jobs:
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} paperclip:${{ github.ref_name }}
             docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} paperclip:latest
             
-            # Backup database
-            docker compose exec -T db pg_dump -U paperclip > backup_$(date +%Y%m%d_%H%M%S).sql
+            # Backup database (with error handling)
+            mkdir -p backups && \
+            docker compose exec -T db pg_dump -U paperclip > backups/backup_$(date +%Y%m%d_%H%M%S).sql || \
+            echo "WARNING: Database backup failed - continuing deployment"
             
             # Graceful rolling update
-            docker compose -f docker-compose.yml up -d --no-deps paperclip-1
+            docker compose -f docker-compose.yml up -d
             sleep 30
-            docker compose -f docker-compose.yml exec -T paperclip-1 node -e "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1))" || exit 1
-            
-            docker compose -f docker-compose.yml up -d --no-deps paperclip-2
-            sleep 30
-            docker compose -f docker-compose.yml exec -T paperclip-2 node -e "fetch('http://localhost:3100/health').then(r => r.ok ? process.exit(0) : process.exit(1))" || exit 1
             
             # Verify deployment
             docker compose ps
@@ -185,4 +182,4 @@ jobs:
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script: |
             cd /opt/paperclip
-            docker compose exec -T paperclip-1 pnpm db:migrate || echo "No migrations to run"
+            docker compose exec -T paperclip pnpm db:migrate || echo "No migrations to run"

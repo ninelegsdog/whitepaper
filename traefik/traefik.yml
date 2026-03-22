@@ -57,7 +57,6 @@ providers:
     network: backend
     watch: true
     useBindPortIP: false
-    swarmMode: false
 
   file:
     directory: /etc/traefik/dynamic
