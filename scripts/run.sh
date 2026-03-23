@@ -100,7 +100,7 @@ echo "╚═══════════════════════�
 echo ""
 echo "ДОСТУП:"
 echo "  Локально:     http://localhost:3100"
-echo "  В Tailscale:  https://$(cat /opt/paperclip/.tailscale-hostname 2>/dev/null || echo 'paperclip').tailnet"
+echo "  OpenCode:     http://localhost:4096"
 echo ""
 echo "ЛОГИ:"
 echo "  docker compose logs -f"

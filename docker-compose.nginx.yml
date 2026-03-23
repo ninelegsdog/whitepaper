@@ -1,0 +1,41 @@
+# =============================================================================
+# Paperclip Nginx Reverse Proxy
+# =============================================================================
+# Provides access to Paperclip and OpenCode from local network
+# with Basic Auth protection
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
+# =============================================================================
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: paperclip-nginx
+    restart: unless-stopped
+    ports:
+      - "192.168.0.186:3100:80"
+      - "192.168.0.186:4096:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      paperclip:
+        condition: service_started
+      opencode:
+        condition: service_started
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  backend:
+    name: paperclip-backend

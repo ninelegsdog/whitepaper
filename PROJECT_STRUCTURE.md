@@ -61,7 +61,6 @@
 | Файл | Назначение | Команда |
 |------|------------|---------|
 | **scripts/setup/01-install-docker.sh** | Docker + Docker Compose | `sudo ./01-install-docker.sh` |
-| **scripts/setup/02-install-tailscale.sh** | VPN для безопасного доступа | `sudo ./02-install-tailscale.sh` |
 | **scripts/setup/03-create-dirs.sh** | Создание директорий | `sudo ./03-create-dirs.sh` |
 | **scripts/setup/04-setup-firewall.sh** | Firewall UFW | `sudo ./04-setup-firewall.sh` |
 | **scripts/setup/05-pull-images.sh** | Загрузка Docker образов | `sudo ./05-pull-images.sh` |

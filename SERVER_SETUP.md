@@ -5,8 +5,8 @@
 # This guide helps you set up Paperclip on a home server with:
 #   - 7GB RAM / 2+ CPU cores
 #   - Docker + Docker Compose
-#   - Tailscale VPN for secure access
-#   - UFW firewall (VPN-only access)
+#   - Nginx reverse proxy with Basic Auth
+#   - UFW firewall (local network only)
 #   - OpenCode + Groq API (free tier AI)
 #
 # =============================================================================
@@ -19,23 +19,23 @@
 │                                                                  │
 │   ┌──────────────────┐         ┌─────────────────────────┐     │
 │   │   Home Server    │         │   Your Computer        │     │
-│   │                  │         │                        │     │
-│   │  ┌────────────┐  │         │  ┌─────────────────┐  │     │
-│   │  │ Paperclip  │  │  ←────  │  │   Browser       │  │     │
-│   │  │ Container  │  │         │  └─────────────────┘  │     │
+│   │   192.168.0.186  │         │                        │     │
+│   │                  │         │  ┌─────────────────┐  │     │
+│   │  ┌────────────┐  │  ←────  │  │   Browser       │  │     │
+│   │  │  Nginx     │  │         │  │   (Basic Auth)  │  │     │
+│   │  │  Proxy     │  │         │  └─────────────────┘  │     │
 │   │  └────────────┘  │         └─────────────────────────┘     │
 │   │        ↑         │                   ↑                      │
 │   │        │         │                   │                      │
 │   │  ┌────────────┐  │                   │                      │
-│   │  │ PostgreSQL │  │                   │                      │
+│   │  │ Paperclip  │  │                   │                      │
 │   │  │ Container  │  │                   │                      │
 │   │  └────────────┘  │                   │                      │
 │   │        ↑         │                   │                      │
 │   │        │         │         ┌──────────┴──────────┐         │
-│   │  ┌────────────┐  │         │   Tailscale VPN    │         │
-│   │  │   Redis    │  │         │   (Encrypted)      │         │
-│   │  │ Container  │  │         └────────────────────┘         │
-│   │  └────────────┘  │                                          │
+│   │  ┌────────────┐  │         │   Local Network    │         │
+│   │  │ PostgreSQL │  │         │   (192.168.x.x)    │         │
+│   │  └────────────┘  │         └────────────────────┘         │
 │   │        ↑         │                                          │
 │   │  ┌────────────┐  │                                          │
 │   │  │  Traefik   │  │                                          │
@@ -85,9 +85,6 @@ exit
 ssh user@server
 cd /opt/paperclip
 
-# Установка Tailscale (sudo)
-sudo ./scripts/setup/02-install-tailscale.sh
-
 # Создание директорий (sudo)
 sudo ./scripts/setup/03-create-dirs.sh
 
@@ -121,7 +118,6 @@ POSTGRES_PASSWORD=ваш_сгенерированный_пароль
 BETTER_AUTH_SECRET=ваш_сгенерированный_секрет
 GROQ_API_KEY=gsk_...         # бесплатный ключ с console.groq.com
 OPENCODE_API_PASSWORD=ваш_сгенерированный_пароль
-TAILSCALE_AUTH_KEY=tskey-auth-... # с Tailscale admin panel
 ```
 
 ### 4. Запуск
@@ -137,8 +133,12 @@ TAILSCALE_AUTH_KEY=tskey-auth-... # с Tailscale admin panel
 ### 5. Доступ
 
 Откройте в браузере:
-- **Через Tailscale**: `https://paperclip.tailnet`
-- **Локально**: `http://localhost:3100`
+- **Paperclip**: `http://192.168.0.186:3100`
+- **OpenCode**: `http://192.168.0.186:4096`
+
+При запросе введите:
+- **Пользователь**: `admin`
+- **Пароль**: `paperclip`
 
 ---
 
@@ -150,9 +150,8 @@ TAILSCALE_AUTH_KEY=tskey-auth-... # с Tailscale admin panel
 |--------|---------|
 | Non-root containers | Контейнеры запускаются от непривилегированных пользователей |
 | Read-only filesystem | Файловая система контейнеров только для чтения |
-| Firewall (UFW) | Закрыт доступ из интернета, открыт только VPN |
-| Tailscale VPN | Зашифрованное соединение через VPN |
-| TLS | Все соединения шифруются |
+| Firewall (UFW) | Закрыт доступ из интернета, открыта локальная сеть |
+| Nginx Basic Auth | Защита доступа через логин/пароль |
 | Secrets | Пароли и ключи не хранятся в git |
 
 ### Firewall правила:
@@ -161,9 +160,9 @@ TAILSCALE_AUTH_KEY=tskey-auth-... # с Tailscale admin panel
 ┌────────────────────────────────────────────────────────┐
 │                   INCOMING TRAFFIC                      │
 ├────────────────────────────────────────────────────────┤
-│  SSH (22)          ✓ ALLOWED  - Server management    │
-│  Tailscale VPN     ✓ ALLOWED  - Access to Paperclip   │
-│  HTTP/HTTPS        ✗ BLOCKED  - No public access    │
+│  SSH (2222)       ✓ ALLOWED  - Server management    │
+│  Local Network    ✓ ALLOWED  - Access to Paperclip   │
+│  HTTP/HTTPS       ✗ BLOCKED  - No public access    │
 │  Everything else   ✗ BLOCKED  - Default deny        │
 └────────────────────────────────────────────────────────┘
 ```
@@ -255,10 +254,11 @@ cat backup_20240101.sql | docker compose exec -T db psql -U paperclip
 Проверьте логи: docker compose logs paperclip
 ```
 
-**Q: Нет доступа к Tailscale**
+**Q: Нет доступа к сервисам**
 ```
-Проверьте: tailscale status
-Подключитесь: tailscale up
+Проверьте: make status
+Перезапустите: make restart
+Проверьте Nginx: docker compose logs nginx
 ```
 
 **Q: Ошибка подключения к БД**

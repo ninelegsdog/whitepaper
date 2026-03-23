@@ -199,26 +199,6 @@ generate_docker_secrets() {
     log_success "Docker secrets generation complete"
 }
 
-# =============================================================================
-# Tailscale Auth Key Generation
-# =============================================================================
-
-generate_tailscale_key() {
-    log_info "Generating Tailscale auth key placeholder..."
-    local key_file="${SECRETS_DIR}/TAILSCALE_AUTH_KEY"
-    
-    if [ -f "$key_file" ]; then
-        log_warning "Tailscale auth key already exists, skipping"
-        return 0
-    fi
-    
-    # Placeholder - user needs to generate from Tailscale admin console
-    echo "tskey-auth-k............" > "$key_file"
-    secure_permissions "$key_file"
-    log_success "Created Tailscale auth key placeholder"
-    log_warning "Please update ${key_file} with your actual Tailscale auth key"
-}
-
 generate_opencode_password() {
     log_info "Generating OpenCode API password..."
     local password_file="${SECRETS_DIR}/OPENCODE_API_PASSWORD"
@@ -279,7 +259,6 @@ main() {
     generate_encryption_key
     generate_session_secret
     generate_replica_id
-    generate_tailscale_key
     generate_opencode_password
     generate_groq_api_key
     
@@ -297,7 +276,6 @@ main() {
     log_warning "IMPORTANT:"
     log_warning "  - NEVER commit .secrets/ to version control"
     log_warning "  - Keep your secrets safe and backed up"
-    log_warning "  - Update Tailscale auth key with your actual key"
     log_warning "  - Update GROQ_API_KEY with your actual API key"
     echo ""
 }

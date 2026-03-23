@@ -13,7 +13,7 @@
 
 .PHONY: help up down restart logs logs-opencode logs-app logs-db logs-redis status
 .PHONY: backup backup-db backup-redis list-backups restore
-.PHONY: validate health clean prune ps
+.PHONY: validate health clean prune ps nginx-up nginx-down
 
 # Colors
 BLUE := \033[0;34m
@@ -26,6 +26,7 @@ NC := \033[0m
 COMPOSE_FILES := -f docker-compose.yml
 MONITORING_FILES := -f docker-compose.monitoring.yml
 DEV_FILES := -f docker-compose.dev.yml
+NGINX_FILES := -f docker-compose.nginx.yml
 ALL_FILES := $(COMPOSE_FILES) $(MONITORING_FILES)
 
 # Directories
@@ -71,6 +72,10 @@ help:
 	@echo "  make monitoring-up   Start monitoring stack"
 	@echo "  make monitoring-down Stop monitoring stack"
 	@echo ""
+	@echo "$(GREEN)Nginx Proxy:$(NC)"
+	@echo "  make nginx-up       Start Nginx reverse proxy"
+	@echo "  make nginx-down      Stop Nginx reverse proxy"
+	@echo ""
 	@echo "$(GREEN)Development:$(NC)"
 	@echo "  make dev         Start development environment"
 	@echo "  make dev-logs    View development logs"
@@ -90,16 +95,17 @@ help:
 up: validate
 	@mkdir -p $(BACKUP_DIR) $(LOG_DIR)
 	@echo "$(GREEN)Starting Paperclip...$(NC)"
-	docker compose $(COMPOSE_FILES) up -d
+	docker compose $(COMPOSE_FILES) $(NGINX_FILES) up -d
 	@echo ""
 	@echo "$(GREEN)Services started!$(NC)"
-	@echo "  Paperclip: http://localhost:3100"
-	@echo "  OpenCode:  http://localhost:4096"
+	@echo "  Paperclip: http://192.168.0.186:3100"
+	@echo "  OpenCode:  http://192.168.0.186:4096"
+	@echo "  Auth:      admin / paperclip"
 	@echo ""
 
 down:
 	@echo "$(YELLOW)Stopping Paperclip...$(NC)"
-	docker compose $(ALL_FILES) down
+	docker compose $(ALL_FILES) $(NGINX_FILES) down
 	@echo "$(GREEN)Services stopped$(NC)"
 
 restart: down up
@@ -231,6 +237,24 @@ monitoring-down:
 	@echo "$(YELLOW)Stopping monitoring stack...$(NC)"
 	docker compose $(ALL_FILES) --profile monitoring down
 	@echo "$(GREEN)Monitoring stopped$(NC)"
+
+# -----------------------------------------------------------------------------
+# Nginx Reverse Proxy
+# -----------------------------------------------------------------------------
+
+nginx-up:
+	@echo "$(GREEN)Starting Nginx reverse proxy...$(NC)"
+	docker compose $(COMPOSE_FILES) $(NGINX_FILES) up -d nginx
+	@echo "$(GREEN)Nginx started!$(NC)"
+	@echo "  Paperclip: http://192.168.0.186:3100"
+	@echo "  OpenCode:  http://192.168.0.186:4096"
+	@echo "  Auth:      admin / paperclip"
+	@echo ""
+
+nginx-down:
+	@echo "$(YELLOW)Stopping Nginx...$(NC)"
+	docker compose $(COMPOSE_FILES) $(NGINX_FILES) down nginx
+	@echo "$(GREEN)Nginx stopped$(NC)"
 
 # -----------------------------------------------------------------------------
 # Development

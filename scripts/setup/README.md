@@ -25,9 +25,6 @@ exit
 ssh user@server
 cd /opt/paperclip
 
-# Установка Tailscale
-sudo ./setup/02-install-tailscale.sh
-
 # Создание директорий
 sudo ./setup/03-create-dirs.sh
 
@@ -81,12 +78,11 @@ nano .env
 scripts/
 ├── setup/
 │   ├── 01-install-docker.sh    # Установка Docker (sudo)
-│   ├── 02-install-tailscale.sh  # Установка Tailscale (sudo)
 │   ├── 03-create-dirs.sh       # Создание директорий (sudo)
-│   ├── 04-setup-firewall.sh     # Настройка UFW (sudo)
-│   └── 05-pull-images.sh        # Загрузка образов
-├── .env                         # Пример .env файла
-└── run.sh                       # Основной скрипт запуска
+│   ├── 04-setup-firewall.sh    # Настройка UFW (sudo)
+│   └── 05-pull-images.sh       # Загрузка образов
+├── .env                        # Пример .env файла
+└── run.sh                      # Основной скрипт запуска
 ```
 
 ---
@@ -98,17 +94,16 @@ scripts/
 | Скрипт | Действия |
 |--------|----------|
 | `01-install-docker.sh` | Установка Docker Engine, добавление пользователя в группу docker |
-| `02-install-tailscale.sh` | Установка Tailscale VPN, авторизация |
 | `03-create-dirs.sh` | Создание директорий с правильными правами |
-| `04-setup-firewall.sh` | UFW firewall: закрыт доступ извне, открыт Tailscale |
+| `04-setup-firewall.sh` | UFW firewall: закрыт доступ извне, открыта локальная сеть |
 
 ### Firewall правила:
 
 ```
 ВХОДЯЩИЕ:
-  ✓ SSH (порт 22)       - для управления
-  ✓ Tailscale (VPN)     - для доступа к Paperclip
-  ✗ Всё остальное       - ЗАБЛОКИРОВАНО
+  ✓ SSH (порт 2222)        - для управления
+  ✓ Локальная сеть         - для доступа к Paperclip
+  ✗ Всё остальное          - ЗАБЛОКИРОВАНО
 
 ИСХОДЯЩИЕ:
   ✓ Всё разрешено
@@ -120,10 +115,10 @@ scripts/
 
 После установки Paperclip будет доступен:
 
-| Метод | Адрес |
-|-------|-------|
-| Локально | http://localhost:3100 |
-| Через Tailscale | https://paperclip.tailnet |
+| Сервис | Адрес | Пользователь | Пароль |
+|--------|-------|-------------|--------|
+| Paperclip | http://192.168.0.186:3100 | admin | paperclip |
+| OpenCode | http://192.168.0.186:4096 | admin | paperclip |
 
 ---
 
@@ -175,12 +170,6 @@ sudo systemctl enable docker
 ```bash
 # Перелогиньтесь или выполните:
 newgrp docker
-```
-
-### Tailscale не подключается:
-```bash
-tailscale status
-tailscale up
 ```
 
 ### Paperclip не запускается:

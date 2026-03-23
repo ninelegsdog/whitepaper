@@ -16,9 +16,9 @@
 
 This repository contains Docker configurations for deploying Paperclip, an AI agent orchestration platform. The setup is designed for:
 
-- **Maximum Security**: Non-root users, read-only filesystems, dropped capabilities
+- **Maximum Security**: Non-root users, read-only filesystems, dropped capabilities, Basic Auth
 - **Scalability**: Multi-instance deployment with load balancing
-- **VPN-Only Access**: Direct access via Tailscale VPN
+- **Local Network Access**: Nginx reverse proxy with Basic Auth for local network access
 - **Monitoring**: Prometheus + Grafana for observability
 - **CI/CD**: GitHub Actions workflows for automated builds and deployment
 - **AI Integration**: OpenCode with Groq API (free tier) for AI agent capabilities
@@ -189,8 +189,15 @@ Connect to Node.js debugger:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Tailscale VPN Network                        │
-│                    (192.168.0.186)                              │
+│                    Local Network (192.168.0.0/24)                │
+│                    Clients (Browser with Basic Auth)            │
+└─────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         Nginx Reverse Proxy                      │
+│                    (192.168.0.186:3100, :4096)                   │
+│                    Basic Auth: admin / paperclip                 │
 └─────────────────────────────────────────────────────────────────┘
                             │
             ┌───────────────┼───────────────┐
@@ -243,20 +250,7 @@ cp .env.example .env
 nano .env
 ```
 
-#### 4. Set Up Tailscale
-
-```bash
-# Install Tailscale
-curl -fsSL https://tailscale.com/install.sh | sh
-
-# Authenticate
-tailscale up --authkey=<your-auth-key>
-
-# Note the Tailscale IP for DNS configuration
-tailscale ip -4
-```
-
-#### 5. Start Production Stack
+#### 4. Start Production Stack
 
 ```bash
 # Create backend network
@@ -341,10 +335,10 @@ ls -la .secrets/
 ### Firewall Configuration
 
 ```bash
-# Allow only Tailscale
-ufw allow from 100.64.0.0/10 to any port 443,80
-ufw deny 443
-ufw deny 80
+# Allow only local network
+ufw allow from 192.168.0.0/24 to any port 3100,4096
+ufw deny 3100
+ufw deny 4096
 ```
 
 ## Scaling

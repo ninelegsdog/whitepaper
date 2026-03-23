@@ -18,7 +18,7 @@ services:
     container_name: paperclip-app
     restart: unless-stopped
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - paperclip-data:/paperclip
       - paperclip-logs:/app/logs
@@ -37,9 +37,9 @@ services:
       - PAPERCLIP_HOME=/paperclip
       - PAPERCLIP_INSTANCE_ID=home-server
       - PAPERCLIP_CONFIG=/paperclip/instances/home-server/config.json
-      - PAPERCLIP_DEPLOYMENT_MODE=authenticated
+      - PAPERCLIP_DEPLOYMENT_MODE=public
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=local
-      - PAPERCLIP_ALLOWED_HOSTNAMES=${PAPERCLIP_ALLOWED_HOSTNAMES:-localhost,127.0.0.1}
+      - PAPERCLIP_ALLOWED_HOSTNAMES=${PAPERCLIP_ALLOWED_HOSTNAMES:-localhost,127.0.0.1,192.168.0.186}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - OPENCODE_API_URL=http://opencode:4096
       - LOG_LEVEL=warn
@@ -85,7 +85,7 @@ services:
     container_name: paperclip-opencode
     restart: unless-stopped
     ports:
-      - "4096:4096"
+      - "127.0.0.1:4096:4096"
     networks:
       - backend
     secrets:
@@ -240,8 +240,6 @@ secrets:
     file: ./.secrets/SESSION_SECRET
   REPLICA_ID:
     file: ./.secrets/REPLICA_ID
-  TAILSCALE_AUTH_KEY:
-    file: ./.secrets/TAILSCALE_AUTH_KEY
   OPENCODE_API_PASSWORD:
     file: ./.secrets/OPENCODE_API_PASSWORD
   GROQ_API_KEY:
