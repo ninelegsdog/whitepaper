@@ -3,8 +3,13 @@ set -e
 
 # Конфигурация Vault
 export VAULT_ADDR='http://127.0.0.1:8200'
-# Note: VAULT_TOKEN should be set as an environment variable before running this script
-# export VAULT_TOKEN='your-vault-token-here'
+# Читаем токен из файла .vault-token, если он существует
+if [ -f ".vault-token" ]; then
+    export VAULT_TOKEN=$(cat .vault-token)
+elif [ -z "$VAULT_TOKEN" ]; then
+    echo "Ошибка: VAULT_TOKEN не установлен. Создайте файл .vault-token с вашим токеном или установите переменную окружения VAULT_TOKEN"
+    exit 1
+fi
 
 # Синхронизация всех секретов
 for secret_file in .secrets/*; do
