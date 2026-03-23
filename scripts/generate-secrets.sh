@@ -173,47 +173,6 @@ generate_replica_id() {
 }
 
 # =============================================================================
-# Environment File Generation
-# =============================================================================
-
-generate_env_file() {
-    log_info "Generating .env file from secrets..."
-    
-    if [ -f "$ENV_FILE" ]; then
-        log_warning ".env file already exists, updating..."
-    else
-        touch "$ENV_FILE"
-    fi
-    
-    # Copy from example if exists
-    if [ -f "${PROJECT_ROOT}/.env.example" ] && [ ! -s "$ENV_FILE" ]; then
-        cp "${PROJECT_ROOT}/.env.example" "$ENV_FILE"
-    fi
-    
-    # Add/update secrets
-    if [ -f "${SECRETS_DIR}/BETTER_AUTH_SECRET" ]; then
-        if grep -q "^BETTER_AUTH_SECRET=" "$ENV_FILE" 2>/dev/null; then
-            sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(cat "${SECRETS_DIR}"/BETTER_AUTH_SECRET)|" "$ENV_FILE"
-        else
-            echo "BETTER_AUTH_SECRET=$(cat "${SECRETS_DIR}"/BETTER_AUTH_SECRET)" >> "$ENV_FILE"
-        fi
-    fi
-    
-    if [ -f "${SECRETS_DIR}/POSTGRES_PASSWORD" ]; then
-        if grep -q "^POSTGRES_PASSWORD=" "$ENV_FILE" 2>/dev/null; then
-            sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(cat "${SECRETS_DIR}"/POSTGRES_PASSWORD)|" "$ENV_FILE"
-        else
-            echo "POSTGRES_PASSWORD=$(cat "${SECRETS_DIR}"/POSTGRES_PASSWORD)" >> "$ENV_FILE"
-        fi
-    fi
-    
-    # Set secure permissions on .env
-    chmod 600 "$ENV_FILE" 2>/dev/null || true
-    
-    log_success "Updated .env file"
-}
-
-# =============================================================================
 # Docker Secrets Generation
 # =============================================================================
 
@@ -269,6 +228,21 @@ generate_opencode_password() {
     log_success "Created OpenCode API password"
 }
 
+generate_groq_api_key() {
+    log_info "Generating GROQ API key placeholder..."
+    local key_file="${SECRETS_DIR}/GROQ_API_KEY"
+    
+    if [ -f "$key_file" ]; then
+        log_warning "GROQ API key already exists, skipping"
+        return 0
+    fi
+    
+    echo "gsk_YOUR_ACTUAL_KEY_HERE" > "$key_file"
+    secure_permissions "$key_file"
+    log_success "Created GROQ API key placeholder"
+    log_warning "Please update ${key_file} with your actual API key"
+}
+
 # =============================================================================
 # Main Function
 # =============================================================================
@@ -300,9 +274,7 @@ main() {
     generate_replica_id
     generate_tailscale_key
     generate_opencode_password
-    
-    # Generate environment file
-    generate_env_file
+    generate_groq_api_key
     
     # Docker secrets
     generate_docker_secrets
@@ -314,12 +286,12 @@ main() {
     echo ""
     log_success "All secrets have been generated"
     log_info "Secrets directory: ${SECRETS_DIR}"
-    log_info ".env file: ${ENV_FILE}"
     echo ""
     log_warning "IMPORTANT:"
-    log_warning "  - NEVER commit .secrets/ or .env to version control"
+    log_warning "  - NEVER commit .secrets/ to version control"
     log_warning "  - Keep your secrets safe and backed up"
     log_warning "  - Update Tailscale auth key with your actual key"
+    log_warning "  - Update GROQ_API_KEY with your actual API key"
     echo ""
 }
 

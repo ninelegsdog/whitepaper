@@ -24,6 +24,13 @@ services:
       - paperclip-logs:/app/logs
     networks:
       - backend
+    secrets:
+      - BETTER_AUTH_SECRET
+      - SESSION_SECRET
+      - JWT_SECRET
+      - ENCRYPTION_KEY
+      - OPENCODE_API_PASSWORD
+      - GROQ_API_KEY
     environment:
       - NODE_ENV=production
       - PORT=3100
@@ -36,10 +43,10 @@ services:
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=local
       - PAPERCLIP_ALLOWED_HOSTNAMES=${PAPERCLIP_ALLOWED_HOSTNAMES:-localhost,127.0.0.1}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - GROQ_API_KEY=${GROQ_API_KEY}
+      - BETTER_AUTH_SECRET_FILE=/run/secrets/BETTER_AUTH_SECRET
+      - GROQ_API_KEY_FILE=/run/secrets/GROQ_API_KEY
       - OPENCODE_API_URL=http://opencode:4096
-      - OPENCODE_API_PASSWORD=${OPENCODE_API_PASSWORD}
+      - OPENCODE_API_PASSWORD_FILE=/run/secrets/OPENCODE_API_PASSWORD
       - LOG_LEVEL=warn
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -79,9 +86,6 @@ services:
   # OpenCode AI Agent (Groq API)
   # =============================================================================
   opencode:
-    build:
-      context: ./opencode
-      dockerfile: Dockerfile.opencode
     image: opencode:local
     container_name: paperclip-opencode
     restart: unless-stopped
@@ -89,9 +93,12 @@ services:
       - "4096:4096"
     networks:
       - backend
+    secrets:
+      - GROQ_API_KEY
+      - OPENCODE_API_PASSWORD
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENCODE_SERVER_PASSWORD=${OPENCODE_API_PASSWORD}
+      - GROQ_API_KEY_FILE=/run/secrets/GROQ_API_KEY
+      - OPENCODE_SERVER_PASSWORD_FILE=/run/secrets/OPENCODE_API_PASSWORD
       - TZ=UTC
     deploy:
       resources:
@@ -121,9 +128,11 @@ services:
     image: postgres:17-alpine
     container_name: paperclip-db
     restart: unless-stopped
+    secrets:
+      - POSTGRES_PASSWORD
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/POSTGRES_PASSWORD
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
     command:
@@ -220,6 +229,29 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+# =============================================================================
+# Secrets
+# =============================================================================
+secrets:
+  BETTER_AUTH_SECRET:
+    file: ./.secrets/BETTER_AUTH_SECRET
+  POSTGRES_PASSWORD:
+    file: ./.secrets/POSTGRES_PASSWORD
+  JWT_SECRET:
+    file: ./.secrets/JWT_SECRET
+  ENCRYPTION_KEY:
+    file: ./.secrets/ENCRYPTION_KEY
+  SESSION_SECRET:
+    file: ./.secrets/SESSION_SECRET
+  REPLICA_ID:
+    file: ./.secrets/REPLICA_ID
+  TAILSCALE_AUTH_KEY:
+    file: ./.secrets/TAILSCALE_AUTH_KEY
+  OPENCODE_API_PASSWORD:
+    file: ./.secrets/OPENCODE_API_PASSWORD
+  GROQ_API_KEY:
+    file: ./.secrets/GROQ_API_KEY
 
 # =============================================================================
 # Networks

@@ -17,19 +17,13 @@ echo "║                  Запуск Paperclip                            ║
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Проверка .env файла
-if [ ! -f "$PROJECT_ROOT/.env" ]; then
-    echo "ERROR: .env файл не найден!"
+# Проверка секретов
+if [ ! -d "$PROJECT_ROOT/.secrets" ]; then
+    echo "ERROR: Директория .secrets не найдена!"
     echo ""
-    echo "Скопируйте пример и заполните:"
-    echo "  cp .env.example .env"
-    echo "  nano .env"
+    echo "Запустите скрипт генерации секретов:"
+    echo "  ./scripts/generate-secrets.sh"
     echo ""
-    echo "НЕОБХОДИМЫЕ ПЕРЕМЕННЫЕ:"
-    echo "  - POSTGRES_PASSWORD"
-    echo "  - BETTER_AUTH_SECRET"
-    echo "  - OPENAI_API_KEY"
-    echo "  - ANTHROPIC_API_KEY"
     exit 1
 fi
 
@@ -43,19 +37,18 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# Проверка .env
+# Проверка секретов
 echo "[1/5] Проверка конфигурации..."
-source "$PROJECT_ROOT/.env" 2>/dev/null || true
 
-if [ -z "$POSTGRES_PASSWORD" ] || [ "$POSTGRES_PASSWORD" = "<СГЕНЕРИРУЙТЕ>" ]; then
-    echo "ERROR: POSTGRES_PASSWORD не настроен!"
-    echo "Отредактируйте .env файл"
+if [ ! -f "$PROJECT_ROOT/.secrets/POSTGRES_PASSWORD" ]; then
+    echo "ERROR: POSTGRES_PASSWORD не найден!"
+    echo "Запустите ./scripts/generate-secrets.sh"
     exit 1
 fi
 
-if [ -z "$BETTER_AUTH_SECRET" ] || [ "$BETTER_AUTH_SECRET" = "<СГЕНЕРИРУЙТЕ>" ]; then
-    echo "ERROR: BETTER_AUTH_SECRET не настроен!"
-    echo "Отредактируйте .env файл"
+if [ ! -f "$PROJECT_ROOT/.secrets/BETTER_AUTH_SECRET" ]; then
+    echo "ERROR: BETTER_AUTH_SECRET не найден!"
+    echo "Запустите ./scripts/generate-secrets.sh"
     exit 1
 fi
 

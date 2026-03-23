@@ -1,10 +1,5 @@
 # Секреты и конфиденциальные данные
-.env
-.env.*
-*.env
-.env.local
-.env.production
-.env.*.local
+.secrets/
 
 # Учетные данные и ключи
 *.pem
