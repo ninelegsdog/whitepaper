@@ -1,15 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "groq": {
-      "apiKey": "${GROQ_API_KEY}",
-      "models": {
-        "llama-3.3-70b-versatile": {
-          "id": "llama-3.3-70b-versatile"
-        }
-      }
-    }
-  },
   "model": "groq/llama-3.3-70b-versatile",
   "server": {
     "port": 4096,

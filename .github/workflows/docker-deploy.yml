@@ -63,6 +63,23 @@ jobs:
             # Stop old containers
             docker compose -f docker-compose.yml down || true
             
+            # Create secrets directory if it doesn't exist
+            mkdir -p .secrets
+            
+            # Create secret files from GitHub Secrets
+            echo "${{ secrets.BETTER_AUTH_SECRET }}" > .secrets/BETTER_AUTH_SECRET
+            echo "${{ secrets.POSTGRES_PASSWORD }}" > .secrets/POSTGRES_PASSWORD
+            echo "${{ secrets.JWT_SECRET }}" > .secrets/JWT_SECRET
+            echo "${{ secrets.ENCRYPTION_KEY }}" > .secrets/ENCRYPTION_KEY
+            echo "${{ secrets.SESSION_SECRET }}" > .secrets/SESSION_SECRET
+            echo "${{ secrets.REPLICA_ID }}" > .secrets/REPLICA_ID
+            echo "${{ secrets.TAILSCALE_AUTH_KEY }}" > .secrets/TAILSCALE_AUTH_KEY
+            echo "${{ secrets.OPENCODE_API_PASSWORD }}" > .secrets/OPENCODE_API_PASSWORD
+            echo "${{ secrets.GROQ_API_KEY }}" > .secrets/GROQ_API_KEY
+            
+            # Set proper permissions on secret files
+            chmod 600 .secrets/*
+            
             # Start new containers
             docker compose -f docker-compose.yml up -d
             
@@ -112,6 +129,23 @@ jobs:
             mkdir -p backups && \
             docker compose exec -T db pg_dump -U paperclip > backups/backup_$(date +%Y%m%d_%H%M%S).sql || \
             echo "WARNING: Database backup failed - continuing deployment"
+            
+            # Create secrets directory if it doesn't exist
+            mkdir -p .secrets
+            
+            # Create secret files from GitHub Secrets
+            echo "${{ secrets.BETTER_AUTH_SECRET }}" > .secrets/BETTER_AUTH_SECRET
+            echo "${{ secrets.POSTGRES_PASSWORD }}" > .secrets/POSTGRES_PASSWORD
+            echo "${{ secrets.JWT_SECRET }}" > .secrets/JWT_SECRET
+            echo "${{ secrets.ENCRYPTION_KEY }}" > .secrets/ENCRYPTION_KEY
+            echo "${{ secrets.SESSION_SECRET }}" > .secrets/SESSION_SECRET
+            echo "${{ secrets.REPLICA_ID }}" > .secrets/REPLICA_ID
+            echo "${{ secrets.TAILSCALE_AUTH_KEY }}" > .secrets/TAILSCALE_AUTH_KEY
+            echo "${{ secrets.OPENCODE_API_PASSWORD }}" > .secrets/OPENCODE_API_PASSWORD
+            echo "${{ secrets.GROQ_API_KEY }}" > .secrets/GROQ_API_KEY
+            
+            # Set proper permissions on secret files
+            chmod 600 .secrets/*
             
             # Graceful rolling update
             docker compose -f docker-compose.yml up -d

@@ -25,12 +25,10 @@ services:
     networks:
       - backend
     secrets:
-      - BETTER_AUTH_SECRET
-      - SESSION_SECRET
-      - JWT_SECRET
-      - ENCRYPTION_KEY
-      - OPENCODE_API_PASSWORD
+      - POSTGRES_PASSWORD
       - GROQ_API_KEY
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3100
@@ -43,10 +41,7 @@ services:
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=local
       - PAPERCLIP_ALLOWED_HOSTNAMES=${PAPERCLIP_ALLOWED_HOSTNAMES:-localhost,127.0.0.1}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      - BETTER_AUTH_SECRET_FILE=/run/secrets/BETTER_AUTH_SECRET
-      - GROQ_API_KEY_FILE=/run/secrets/GROQ_API_KEY
       - OPENCODE_API_URL=http://opencode:4096
-      - OPENCODE_API_PASSWORD_FILE=/run/secrets/OPENCODE_API_PASSWORD
       - LOG_LEVEL=warn
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -97,16 +92,15 @@ services:
       - GROQ_API_KEY
       - OPENCODE_API_PASSWORD
     environment:
-      - GROQ_API_KEY_FILE=/run/secrets/GROQ_API_KEY
-      - OPENCODE_SERVER_PASSWORD_FILE=/run/secrets/OPENCODE_API_PASSWORD
       - TZ=UTC
+    command: sh -c 'export GROQ_API_KEY=$$(cat /run/secrets/GROQ_API_KEY); export OPENCODE_SERVER_PASSWORD=$$(cat /run/secrets/OPENCODE_API_PASSWORD); exec opencode serve --hostname 0.0.0.0 --port 4096'
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -u opencode:$OPENCODE_API_PASSWORD --max-time 5 http://localhost:4096/ > /dev/null"]
+      test: ["CMD-SHELL", "curl -sf -u opencode:$$(cat /run/secrets/OPENCODE_API_PASSWORD 2>/dev/null || echo '') --max-time 5 http://localhost:4096/ > /dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -102,7 +102,14 @@ generate_db_password() {
     fi
     
     local password
-    password=$(generate_random_secret 48)
+    # Generate URL-safe password (alphanumeric only, no special chars)
+    if command -v openssl > /dev/null 2>&1; then
+        password=$(openssl rand -base64 48 | tr -d '=+/' | head -c 48)
+    elif command -v head > /dev/null 2>&1 && command -v tr > /dev/null 2>&1; then
+        password=$(head -c 96 /dev/urandom | base64 | tr -d '=+/' | head -c 48)
+    else
+        password=$(head -c 48 /dev/urandom | xxd -p | tr -d '\n' | head -c 48)
+    fi
     echo "$password" > "$password_file"
     secure_permissions "$password_file"
     log_success "Created database password"

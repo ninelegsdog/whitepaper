@@ -1,6 +1,5 @@
-storage "raft" {
+storage "file" {
   path = "/vault/file"
-  node_id = "vault-node-1"
 }
 
 listener "tcp" {
@@ -9,5 +8,6 @@ listener "tcp" {
 }
 
 api_addr = "http://127.0.0.1:8200"
-cluster_addr = "http://127.0.0.1:8201"
 ui = true
+
+disable_mlock = true

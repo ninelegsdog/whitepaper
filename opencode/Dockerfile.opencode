@@ -24,7 +24,7 @@ ARG TARGETOS
 # SHA256 checksum for security verification
 # Update with value from: https://github.com/anomalyco/opencode/releases/latest
 # Get with: curl -sL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-x64-musl.tar.gz" | sha256sum
-ARG OPENCODE_SHA256="660f7319f748a66bda1748c1e7ae74dade1ba3837e6c181263506d88e7b5a4b6"
+ARG OPENCODE_SHA256="2f1dc51382d2662ab260776992aa985138724e0aa9d92409698615b7a9071a4e"
 RUN curl -fsSL "https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux-x64-musl.tar.gz" -o /tmp/opencode.tar.gz && \
     echo "${OPENCODE_SHA256}  /tmp/opencode.tar.gz" | sha256sum -c - && \
     tar -xzf /tmp/opencode.tar.gz -C /usr/local/bin && \
